@@ -113,10 +113,12 @@ export function AboutEventSection() {
           <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#1769B5]/12 text-[#1769B5] font-bold type-label-sm mb-2">
             {t('event.badge')}
           </div>
-          <h2 className="text-2xl sm:type-headline-lg font-bold text-[#12365C] mb-1.5">
+          <h2 className="text-2xl sm:type-headline-lg font-bold text-[#12365C] mb-1 sm:mb-1.5">
             {t('event.title')}
           </h2>
-          <p className="text-sm sm:type-body-md text-[#475569]">{t('event.subtitle')}</p>
+          <p className="hidden sm:block text-sm sm:type-body-md text-[#475569]">
+            {t('event.subtitle')}
+          </p>
         </div>
 
         {/* Structured Event Meta Strip (2x2 clean grid on mobile, 4-col bar on desktop) */}

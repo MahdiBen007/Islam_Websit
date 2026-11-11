@@ -185,7 +185,7 @@ export function AdminLoginPage() {
                   aria-hidden="true"
                 />
               </h1>
-              <p className="text-xs sm:type-body-md text-secondary-fixed/90 mt-1.5 sm:mt-2.5 leading-relaxed">
+              <p className="hidden sm:block text-xs sm:type-body-md text-secondary-fixed/90 mt-1.5 sm:mt-2.5 leading-relaxed">
                 {t('auth.welcomeDesc')}
               </p>
             </div>
@@ -252,20 +252,23 @@ export function AdminLoginPage() {
         <div className="lg:col-span-7 bg-surface-container-lowest p-5 sm:p-10 lg:p-14 flex flex-col justify-center">
           {view === 'login' ? (
             <div className="w-full max-w-lg mx-auto">
-              <div className="flex flex-wrap items-center gap-2 mb-3">
-                <span className="px-3 py-1 rounded-full bg-surface-container-low text-secondary type-label-md font-bold tracking-wide">
+              <div className="flex flex-wrap items-center gap-2 mb-2 sm:mb-3">
+                <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-surface-container-low text-secondary text-xs sm:type-label-md font-bold tracking-wide">
                   {t('auth.portalBadgeEn')}
                 </span>
-                <span className="h-1.5 w-1.5 rounded-full bg-secondary" aria-hidden="true" />
-                <span className="type-label-md text-on-surface-variant font-medium">
+                <span
+                  className="hidden sm:inline-block h-1.5 w-1.5 rounded-full bg-secondary"
+                  aria-hidden="true"
+                />
+                <span className="hidden sm:inline type-label-md text-on-surface-variant font-medium">
                   {t('auth.portalBadgeAr')}
                 </span>
               </div>
 
-              <h2 className="type-headline-lg text-on-surface font-bold">
+              <h2 className="text-xl sm:type-headline-lg text-on-surface font-bold mb-3 sm:mb-0">
                 {t('auth.loginTitle')}
               </h2>
-              <p className="type-body-md text-on-surface-variant mt-1.5 mb-6">
+              <p className="hidden sm:block type-body-md text-on-surface-variant mt-1.5 mb-6">
                 {t('auth.loginSubtitle')}
               </p>
 
@@ -443,7 +446,7 @@ export function AdminLoginPage() {
                 </div>
 
                 {/* Security Assurance Note */}
-                <div className="mt-1 flex items-start gap-2 text-outline">
+                <div className="hidden sm:flex mt-1 items-start gap-2 text-outline">
                   <Shield className="w-4 h-4 text-secondary shrink-0 mt-1" aria-hidden="true" />
                   <p className="type-body-sm leading-relaxed">{t('auth.securityNote')}</p>
                 </div>

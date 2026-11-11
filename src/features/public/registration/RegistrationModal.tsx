@@ -250,7 +250,7 @@ export function RegistrationModal({ isOpen, onClose }: RegistrationModalProps) {
               className="space-y-3 sm:space-y-4"
               data-testid="student-registration-form"
             >
-              <p className="text-xs sm:type-body-sm text-on-surface-variant mb-0.5">
+              <p className="hidden sm:block text-xs sm:type-body-sm text-on-surface-variant mb-0.5">
                 {t('registration.subtitle')}
               </p>
 
@@ -401,7 +401,7 @@ export function RegistrationModal({ isOpen, onClose }: RegistrationModalProps) {
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-2 mt-0.5">
-                  <span className="type-label-sm text-on-surface-variant">
+                  <span className="hidden sm:inline type-label-sm text-on-surface-variant">
                     {t('registration.instagramHint')}
                   </span>
                   <span
@@ -438,7 +438,7 @@ export function RegistrationModal({ isOpen, onClose }: RegistrationModalProps) {
                       <Clapperboard className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-secondary shrink-0" aria-hidden="true" />
                       <span>{t('registration.capcutTitle')}</span>
                     </div>
-                    <p className="text-[11.5px] sm:type-label-sm text-on-surface-variant mt-0.5 leading-snug sm:leading-relaxed">
+                    <p className="hidden sm:block text-[11.5px] sm:type-label-sm text-on-surface-variant mt-0.5 leading-snug sm:leading-relaxed">
                       {t('registration.capcutDescription')}
                     </p>
                   </div>
@@ -494,7 +494,7 @@ export function RegistrationModal({ isOpen, onClose }: RegistrationModalProps) {
 
               {/* Privacy Note */}
               {pageSettings.showPrivacyNote && (
-                <div className="flex items-center justify-center gap-1.5 text-center text-on-surface-variant type-label-sm pt-1">
+                <div className="hidden sm:flex items-center justify-center gap-1.5 text-center text-on-surface-variant type-label-sm pt-1">
                   <ShieldCheck className="w-4 h-4 text-secondary shrink-0" aria-hidden="true" />
                   <span>{t('registration.privacyNote')}</span>
                 </div>

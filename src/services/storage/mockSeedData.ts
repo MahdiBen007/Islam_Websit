@@ -323,9 +323,9 @@ export const INITIAL_PAGE_SETTINGS: PageCustomizationSettings = {
   heroHeadlineAr: 'أطلق إبداعك وكن جزءاً من التغيير!',
   heroHeadlineEn: 'Unleash Your Creativity & Be Part of the Change!',
   heroDescriptionAr:
-    'يدعوكم نادي الإبداع والابتكار للمشاركة في فعاليتنا، واكتشاف عالم الإبداع وصناعة المحتوى الرقمي المتميز بأحدث الأدوات والتقنيات مع نخبة من صناع الأثر.',
+    'انضم لورشة صناعة المحتوى الرقمي والمونتاج التفاعلي مع نخبة من مبدعي الجامعة.',
   heroDescriptionEn:
-    'The Creativity & Innovation Club invites you to join our interactive workshop and master modern digital content creation and CapCut storytelling with top campus creators.',
+    'Join our interactive workshop to master modern digital storytelling and CapCut video creation.',
   ctaButtonTextAr: 'سجل مشاركتك الآن',
   ctaButtonTextEn: 'Register Your Spot Now',
   successHeadlineAr: 'تم استلام طلب تسجيلك بنجاح!',

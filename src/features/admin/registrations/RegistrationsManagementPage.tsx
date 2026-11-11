@@ -196,7 +196,7 @@ export function RegistrationsManagementPage() {
               <span>{t('admin.registrations.badge')}</span>
             </span>
           </div>
-          <p className="text-xs sm:text-[13px] text-[#475569]">
+          <p className="hidden sm:block text-xs sm:text-[13px] text-[#475569]">
             {t('admin.registrations.subtitle')}
           </p>
         </div>
@@ -261,7 +261,7 @@ export function RegistrationsManagementPage() {
               <span className="text-xl sm:text-2xl text-[#B45309] font-bold leading-tight">
                 {stats.pending}
               </span>
-              <span className="text-[11px] text-[#92400E] font-medium truncate">
+              <span className="hidden sm:inline text-[11px] text-[#92400E] font-medium truncate">
                 {t('admin.registrations.requiresAudit')}
               </span>
             </div>
@@ -280,7 +280,7 @@ export function RegistrationsManagementPage() {
               <span className="text-xl sm:text-2xl text-[#15803D] font-bold leading-tight">
                 {stats.approved}
               </span>
-              <span className="text-[11px] text-[#166534] font-medium truncate">
+              <span className="hidden sm:inline text-[11px] text-[#166534] font-medium truncate">
                 {t('admin.registrations.acceptanceRate', { rate: acceptanceRate })}
               </span>
             </div>

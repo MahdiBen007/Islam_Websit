@@ -39,44 +39,40 @@ export const enTranslation = {
     discoverEvent: 'Explore the Event',
     illustrationAlt: 'Creative students collaborating on digital content creation and video editing',
     metric1Value: '100%',
-    metric1Label: 'Hands-on Practice',
+    metric1Label: 'Hands-on',
     metric2Value: '4 Hours',
-    metric2Label: 'Intensive Interactive Labs',
+    metric2Label: 'Interactive',
     metric3Value: 'Certified',
-    metric3Label: 'Official Participation Certificate',
+    metric3Label: 'Certificate',
   },
   event: {
     badge: 'Program Details',
     title: 'About the Event',
-    subtitle: 'A dedicated space for creativity, learning, and exchanging innovative campus ideas.',
+    subtitle: 'A creative space for learning and sharing campus ideas.',
     dateLabel: 'Event Date',
     timeLabel: 'Scheduled Time',
     locationLabel: 'Location',
     statusLabel: 'Registration Status',
-    statusOpen: 'Open & Free for All Students',
-    statusClosed: 'Registration Currently Closed',
+    statusOpen: 'Open & Free',
+    statusClosed: 'Registration Closed',
     pillars: {
       goalTitle: 'Event Objective',
-      goalDesc:
-        'Empower students with the fundamentals of visual digital content production and impactful campus storytelling using modern tools.',
+      goalDesc: 'Build core skills in visual content production and creative storytelling.',
       audienceTitle: 'Target Audience',
-      audienceDesc:
-        'All university students passionate about creativity, design, video editing, and digital branding across all faculties and majors.',
+      audienceDesc: 'All university students passionate about design, creativity, and video editing.',
       toolTitle: 'Official Tool: CapCut',
-      toolDesc:
-        'Intensive hands-on workshops covering professional video editing and visual effects workflows on mobile and desktop.',
+      toolDesc: 'Hands-on video editing and visual effects training on mobile and desktop.',
       organizerTitle: 'Organized By',
-      organizerDesc:
-        'Creativity & Innovation Club under academic and student leadership, delivering an inspiring and practical interactive experience.',
+      organizerDesc: 'Student and academic mentorship delivering an inspiring hands-on experience.',
     },
   },
   registration: {
     badge: 'Fast & Free Enrollment',
     title: 'Registration Form',
-    subtitle: 'Please fill out the details below carefully to confirm your participation.',
+    subtitle: 'Fill in your details to confirm your seat.',
     ctaCardTitle: 'Reserve Your Seat in the Creative Workshop',
     ctaCardDescription:
-      'Registration is open and free for all university students. Open the registration form and complete your details in less than a minute.',
+      'Free registration for all university students — complete your details in under a minute.',
     openFormButton: 'Open Registration Form',
     closeModalLabel: 'Close registration modal',
     closedTitle: 'Registration Temporarily Closed',
@@ -97,13 +93,11 @@ export const enTranslation = {
     instagramPreviewDefault: '@username',
     capcutTitle: 'Official Workshop Tool: CapCut',
     capcutDescription:
-      'The workshop includes live practical exercises using CapCut — please install and prepare the app on your phone or computer in advance.',
-    confirmLabel:
-      'I confirm that all entered information is accurate and commit to attending the scheduled sessions on time.',
+      'Includes live practice with CapCut — please install the app before the workshop.',
+    confirmLabel: 'I confirm my details are accurate and commit to attending.',
     submitButton: 'Submit Registration',
     submittingButton: 'Submitting Registration...',
-    privacyNote:
-      'We respect your privacy. Your details are used solely for event organization and academic communication.',
+    privacyNote: 'Your details are used solely for event organization.',
     submitError: 'Unable to submit registration right now. Please try again.',
     validation: {
       firstNameRequired: 'Please enter your first name (at least 2 characters).',

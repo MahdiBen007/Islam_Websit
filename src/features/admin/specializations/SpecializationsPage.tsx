@@ -139,7 +139,7 @@ export function SpecializationsPage() {
           <h1 className="text-lg sm:text-xl text-[#12365C] font-bold">
             {t('admin.specializations.title')}
           </h1>
-          <p className="text-xs sm:text-[13px] text-[#475569]">
+          <p className="hidden sm:block text-xs sm:text-[13px] text-[#475569]">
             {t('admin.specializations.subtitle')}
           </p>
         </div>

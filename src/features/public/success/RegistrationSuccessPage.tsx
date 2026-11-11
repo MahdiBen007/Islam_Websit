@@ -309,85 +309,85 @@ export function RegistrationSuccessPage() {
 
               {/* 3. What's Next Timeline */}
               <section>
-                <div className="text-start mb-6">
-                  <h2 className="type-headline-md text-primary font-bold mb-1">
+                <div className="text-start mb-4 sm:mb-6">
+                  <h2 className="text-lg sm:type-headline-md text-primary font-bold mb-1">
                     {t('success.whatsNextTitle')}
                   </h2>
-                  <p className="type-body-md text-on-surface-variant">
+                  <p className="hidden sm:block type-body-md text-on-surface-variant">
                     {t('success.whatsNextSubtitle')}
                   </p>
                 </div>
 
-                <div className="relative grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="relative grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-6">
                   <div
                     className="hidden md:block absolute top-7 start-16 end-16 h-0.5 bg-surface-container-highest z-0"
                     aria-hidden="true"
                   />
 
                   {/* Step 1 */}
-                  <div className="relative z-10 flex md:flex-col items-start md:items-center text-start md:text-center gap-4 bg-surface-container-lowest md:bg-transparent p-4 md:p-0 rounded-xl shadow-xs md:shadow-none">
-                    <div className="w-14 h-14 rounded-full bg-primary text-on-primary flex items-center justify-center shrink-0 shadow-md">
-                      <CheckCircle2 className="w-6 h-6" aria-hidden="true" />
+                  <div className="relative z-10 flex md:flex-col items-center md:items-center text-start md:text-center gap-3.5 sm:gap-4 bg-surface-container-lowest md:bg-transparent p-3.5 sm:p-4 md:p-0 rounded-xl shadow-xs md:shadow-none">
+                    <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-primary text-on-primary flex items-center justify-center shrink-0 shadow-md">
+                      <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />
                     </div>
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-0.5 sm:gap-1">
                       <div className="flex items-center md:justify-center gap-2">
-                        <span className="type-label-sm text-secondary font-bold">
+                        <span className="text-xs sm:type-label-sm text-secondary font-bold">
                           {t('success.step1Tag')}
                         </span>
-                        <span className="px-2 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed type-label-sm">
+                        <span className="px-2 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed text-[11px] sm:type-label-sm">
                           {t('success.step1Status')}
                         </span>
                       </div>
-                      <h3 className="type-headline-sm text-primary font-bold">
+                      <h3 className="text-sm sm:type-headline-sm text-primary font-bold">
                         {t('success.step1Title')}
                       </h3>
-                      <p className="type-body-sm text-on-surface-variant max-w-xs">
+                      <p className="hidden sm:block type-body-sm text-on-surface-variant max-w-xs">
                         {t('success.step1Desc')}
                       </p>
                     </div>
                   </div>
 
                   {/* Step 2 */}
-                  <div className="relative z-10 flex md:flex-col items-start md:items-center text-start md:text-center gap-4 bg-surface-container-lowest md:bg-transparent p-4 md:p-0 rounded-xl shadow-xs md:shadow-none">
-                    <div className="w-14 h-14 rounded-full bg-surface-container-lowest text-tertiary flex items-center justify-center shrink-0 shadow-md ring-4 ring-tertiary-fixed-dim/40">
-                      <ClipboardCheck className="w-6 h-6" aria-hidden="true" />
+                  <div className="relative z-10 flex md:flex-col items-center md:items-center text-start md:text-center gap-3.5 sm:gap-4 bg-surface-container-lowest md:bg-transparent p-3.5 sm:p-4 md:p-0 rounded-xl shadow-xs md:shadow-none">
+                    <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-surface-container-lowest text-tertiary flex items-center justify-center shrink-0 shadow-md ring-4 ring-tertiary-fixed-dim/40">
+                      <ClipboardCheck className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />
                     </div>
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-0.5 sm:gap-1">
                       <div className="flex items-center md:justify-center gap-2">
-                        <span className="type-label-sm text-tertiary font-bold">
+                        <span className="text-xs sm:type-label-sm text-tertiary font-bold">
                           {t('success.step2Tag')}
                         </span>
-                        <span className="px-2 py-0.5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed type-label-sm">
+                        <span className="px-2 py-0.5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed text-[11px] sm:type-label-sm">
                           {t('success.step2Status')}
                         </span>
                       </div>
-                      <h3 className="type-headline-sm text-primary font-bold">
+                      <h3 className="text-sm sm:type-headline-sm text-primary font-bold">
                         {t('success.step2Title')}
                       </h3>
-                      <p className="type-body-sm text-on-surface-variant max-w-xs">
+                      <p className="hidden sm:block type-body-sm text-on-surface-variant max-w-xs">
                         {t('success.step2Desc')}
                       </p>
                     </div>
                   </div>
 
                   {/* Step 3 */}
-                  <div className="relative z-10 flex md:flex-col items-start md:items-center text-start md:text-center gap-4 bg-surface-container-lowest md:bg-transparent p-4 md:p-0 rounded-xl shadow-xs md:shadow-none">
-                    <div className="w-14 h-14 rounded-full bg-surface-container-high text-outline flex items-center justify-center shrink-0 shadow-xs">
-                      <MessageSquare className="w-6 h-6" aria-hidden="true" />
+                  <div className="relative z-10 flex md:flex-col items-center md:items-center text-start md:text-center gap-3.5 sm:gap-4 bg-surface-container-lowest md:bg-transparent p-3.5 sm:p-4 md:p-0 rounded-xl shadow-xs md:shadow-none">
+                    <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-surface-container-high text-outline flex items-center justify-center shrink-0 shadow-xs">
+                      <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />
                     </div>
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-0.5 sm:gap-1">
                       <div className="flex items-center md:justify-center gap-2">
-                        <span className="type-label-sm text-outline font-bold">
+                        <span className="text-xs sm:type-label-sm text-outline font-bold">
                           {t('success.step3Tag')}
                         </span>
-                        <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant type-label-sm">
+                        <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant text-[11px] sm:type-label-sm">
                           {t('success.step3Status')}
                         </span>
                       </div>
-                      <h3 className="type-headline-sm text-primary font-bold">
+                      <h3 className="text-sm sm:type-headline-sm text-primary font-bold">
                         {t('success.step3Title')}
                       </h3>
-                      <p className="type-body-sm text-on-surface-variant max-w-xs">
+                      <p className="hidden sm:block type-body-sm text-on-surface-variant max-w-xs">
                         {t('success.step3Desc')}
                       </p>
                     </div>

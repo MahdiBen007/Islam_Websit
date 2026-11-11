@@ -83,7 +83,9 @@ export function AdminDashboardPage() {
           <h1 className="text-base sm:text-lg text-white font-bold leading-snug">
             {t('admin.dashboard.welcomeTitle')}
           </h1>
-          <p className="text-xs text-[#DBEAFE]">{t('admin.dashboard.welcomeSubtitle')}</p>
+          <p className="hidden sm:block text-xs text-[#DBEAFE]">
+            {t('admin.dashboard.welcomeSubtitle')}
+          </p>
         </div>
         <div className="relative z-10 flex items-center shrink-0">
           <Link
@@ -110,7 +112,7 @@ export function AdminDashboardPage() {
             >
               {stats.total}
             </span>
-            <span className="text-[11px] text-[#1769B5] font-medium truncate">
+            <span className="hidden sm:block text-[11px] text-[#1769B5] font-medium truncate">
               {t('admin.dashboard.kpiTotalHint')}
             </span>
           </div>
@@ -131,7 +133,7 @@ export function AdminDashboardPage() {
             >
               {stats.pending}
             </span>
-            <span className="text-[11px] text-[#92400E] font-medium flex items-center gap-1 leading-snug">
+            <span className="hidden sm:flex text-[11px] text-[#92400E] font-medium items-center gap-1 leading-snug">
               <Hourglass className="w-3 h-3 shrink-0" aria-hidden="true" />
               <span>{t('admin.dashboard.kpiPendingHint')}</span>
             </span>
@@ -153,7 +155,7 @@ export function AdminDashboardPage() {
             >
               {stats.approved}
             </span>
-            <span className="text-[11px] text-[#166534] font-medium flex items-center gap-1 leading-snug">
+            <span className="hidden sm:flex text-[11px] text-[#166534] font-medium items-center gap-1 leading-snug">
               <CheckCircle2 className="w-3 h-3 shrink-0" aria-hidden="true" />
               <span>{t('admin.dashboard.kpiAcceptedHint')}</span>
             </span>
@@ -198,7 +200,7 @@ export function AdminDashboardPage() {
               <span className="text-xs sm:text-[13px] text-[#12365C] font-bold">
                 {t('admin.dashboard.regToggleTitle')}
               </span>
-              <span className="text-[11px] sm:text-xs text-[#475569]">
+              <span className="hidden sm:block text-[11px] sm:text-xs text-[#475569]">
                 {t('admin.dashboard.regToggleDesc')}
               </span>
             </div>
@@ -331,7 +333,9 @@ export function AdminDashboardPage() {
             <h2 className="text-sm sm:text-base text-[#12365C] font-bold">
               {t('admin.dashboard.recentTitle')}
             </h2>
-            <p className="text-xs text-[#475569]">{t('admin.dashboard.recentSubtitle')}</p>
+            <p className="hidden sm:block text-xs text-[#475569]">
+              {t('admin.dashboard.recentSubtitle')}
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button

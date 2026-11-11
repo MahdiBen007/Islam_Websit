@@ -84,7 +84,7 @@ export function HeroSection({ onOpenRegistration }: HeroSectionProps) {
             </h1>
 
             {/* Supporting Description */}
-            <p className="text-[14.5px] sm:type-body-lg text-[#334155] max-w-xl mb-5 sm:mb-7 leading-relaxed">
+            <p className="text-[13.5px] sm:type-body-lg text-[#334155] max-w-xl mb-5 sm:mb-7 leading-relaxed line-clamp-2 sm:line-clamp-none">
               {heroDescription}
             </p>
 

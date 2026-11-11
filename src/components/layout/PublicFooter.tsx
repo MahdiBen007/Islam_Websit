@@ -27,7 +27,7 @@ export function PublicFooter() {
               <ClubLogo size="sm" />
               <span className="type-headline-sm text-primary font-bold">{clubName}</span>
             </div>
-            <p className="type-body-sm text-on-surface-variant max-w-sm leading-relaxed">
+            <p className="hidden sm:block type-body-sm text-on-surface-variant max-w-sm leading-relaxed">
               {organizerSummary}
             </p>
           </div>

@@ -44,7 +44,11 @@ export function RegistrationFormSection({ onOpenModal }: RegistrationFormSection
                   : t('registration.closedTitle')}
               </h2>
 
-              <p className="text-sm sm:type-body-md text-[#DBEAFE] leading-relaxed">
+              <p
+                className={`${
+                  pageSettings.isRegistrationOpen ? 'hidden sm:block' : 'block'
+                } text-sm sm:type-body-md text-[#DBEAFE] leading-relaxed`}
+              >
                 {pageSettings.isRegistrationOpen
                   ? t('registration.ctaCardDescription')
                   : t('registration.closedDescription')}
