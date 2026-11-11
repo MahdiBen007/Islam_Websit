@@ -1,0 +1,85 @@
+/*
+ * Centralized Design Tokens — Academic Innovation Portal (Google Stitch)
+ * Club: نادي الإبداع والابتكار
+ * Fonts: Tajawal (Arabic / RTL) & Nunito Sans (English / LTR)
+ */
+
+:root {
+  /* Brand & Stitch Semantic Palette — Crisp & Vibrant */
+  --color-navy-deep: #12365c;
+  --color-primary: #12365c;
+  --color-primary-container: #0c2744;
+  --color-on-primary: #ffffff;
+  --color-on-primary-container: #9fc2eb;
+  --color-primary-fixed: #d3e4ff;
+  --color-primary-fixed-dim: #a9c9f7;
+  --color-on-primary-fixed: #0c2744;
+  --color-on-primary-fixed-variant: #1769b5;
+
+  --color-blue-pro: #1769b5;
+  --color-secondary: #1769b5;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #3b8ee0;
+  --color-on-secondary-container: #0c3d6e;
+  --color-secondary-fixed: #dbeafe;
+  --color-secondary-fixed-dim: #93c5fd;
+  --color-on-secondary-fixed: #0c2d52;
+  --color-on-secondary-fixed-variant: #1769b5;
+
+  --color-yellow-bright: #f5c928;
+  --color-tertiary: #b47800;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #eab308;
+  --color-on-tertiary-container: #422b00;
+  --color-tertiary-fixed: #f5c928;
+  --color-tertiary-fixed-dim: #e5b814;
+  --color-on-tertiary-fixed: #12365c;
+  --color-on-tertiary-fixed-variant: #7a5400;
+
+  /* Neutral Surfaces */
+  --color-surface: #f3f7fc;
+  --color-surface-light-blue: #f3f7fc;
+  --color-surface-bright: #f8fbff;
+  --color-surface-dim: #dce6f2;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #edf3fb;
+  --color-surface-container: #e4edf8;
+  --color-surface-container-high: #dbe6f4;
+  --color-surface-container-highest: #cfddf0;
+
+  /* Text & Outlines */
+  --color-text-dark: #15243b;
+  --color-text-secondary: #52637a;
+  --color-on-surface: #15243b;
+  --color-on-surface-variant: #475569;
+  --color-outline: #64748b;
+  --color-outline-variant: #cbd8ea;
+  --color-border-subtle: #d6e2f1;
+
+  /* Feedback */
+  --color-error: #dc2626;
+  --color-on-error: #ffffff;
+  --color-error-container: #fee2e2;
+  --color-on-error-container: #991b1b;
+  --color-success: #0f766e;
+  --color-success-bg: #ccfbf1;
+
+  /* Typography Families */
+  --font-ar: 'Tajawal', system-ui, -apple-system, sans-serif;
+  --font-en: 'Nunito Sans', system-ui, -apple-system, sans-serif;
+  --font-active: var(--font-ar);
+
+  /* Elevation & Shadows */
+  --shadow-level-1: 0 2px 10px -2px rgba(18, 54, 92, 0.08);
+  --shadow-level-2: 0 10px 26px -4px rgba(18, 54, 92, 0.12);
+  --shadow-level-3: 0 18px 40px -6px rgba(18, 54, 92, 0.18);
+  --shadow-accent-glow: 0 6px 20px rgba(245, 201, 40, 0.42);
+}
+
+html[lang='ar'] {
+  --font-active: var(--font-ar);
+}
+
+html[lang='en'] {
+  --font-active: var(--font-en);
+}

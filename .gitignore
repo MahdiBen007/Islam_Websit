@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Production build & caches
+dist/
+dist-ssr/
+*.local
+*.tsbuildinfo
+
+# Test & coverage outputs
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+coverage/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Editor & OS files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.log

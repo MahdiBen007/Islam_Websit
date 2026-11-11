@@ -1,0 +1,180 @@
+@import 'tailwindcss';
+@import './tokens.css';
+
+@theme {
+  --color-primary: #12365c;
+  --color-primary-container: #0c2744;
+  --color-on-primary: #ffffff;
+  --color-on-primary-container: #9fc2eb;
+  --color-primary-fixed: #d3e4ff;
+  --color-primary-fixed-dim: #a9c9f7;
+  --color-on-primary-fixed: #0c2744;
+  --color-on-primary-fixed-variant: #1769b5;
+  --color-inverse-primary: #a9c9f7;
+
+  --color-secondary: #1769b5;
+  --color-brand-blue: #1769b5;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #3b8ee0;
+  --color-on-secondary-container: #0c3d6e;
+  --color-secondary-fixed: #dbeafe;
+  --color-secondary-fixed-dim: #93c5fd;
+  --color-on-secondary-fixed: #0c2d52;
+  --color-on-secondary-fixed-variant: #1769b5;
+
+  --color-tertiary: #b47800;
+  --color-brand-yellow: #f5c928;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #eab308;
+  --color-on-tertiary-container: #422b00;
+  --color-tertiary-fixed: #f5c928;
+  --color-tertiary-fixed-dim: #e5b814;
+  --color-on-tertiary-fixed: #12365c;
+  --color-on-tertiary-fixed-variant: #7a5400;
+
+  --color-surface: #f3f7fc;
+  --color-background: #f3f7fc;
+  --color-surface-bright: #f8fbff;
+  --color-surface-dim: #dce6f2;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #edf3fb;
+  --color-surface-container: #e4edf8;
+  --color-surface-container-high: #dbe6f4;
+  --color-surface-container-highest: #cfddf0;
+  --color-surface-variant: #dbe6f4;
+  --color-inverse-surface: #1e293b;
+  --color-inverse-on-surface: #f1f5f9;
+
+  --color-on-surface: #15243b;
+  --color-on-background: #15243b;
+  --color-on-surface-variant: #475569;
+  --color-secondary-text: #52637a;
+  --color-outline: #64748b;
+  --color-outline-variant: #cbd8ea;
+
+  --color-error: #dc2626;
+  --color-on-error: #ffffff;
+  --color-error-container: #fee2e2;
+  --color-on-error-container: #991b1b;
+
+  --font-sans: var(--font-active);
+  --font-arabic: var(--font-ar);
+  --font-english: var(--font-en);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    font-family: var(--font-active);
+    background-color: var(--color-surface);
+    color: var(--color-text-dark);
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: var(--font-active);
+    font-size: 1rem;
+    line-height: 1.65;
+    color: var(--color-text-dark);
+    background-color: var(--color-surface);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-active);
+    letter-spacing: 0;
+  }
+
+  /* Comfortable Arabic line-height & soft weight balancing */
+  html[lang='ar'] body {
+    line-height: 1.75;
+    letter-spacing: 0;
+  }
+
+  html[lang='ar'] h1,
+  html[lang='ar'] h2,
+  html[lang='ar'] h3 {
+    line-height: 1.42;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font-family: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-blue-pro);
+    outline-offset: 2px;
+  }
+}
+
+/* Reusable typographic utility tokens matching Stitch hierarchy with soft Tajawal / Nunito Sans weights */
+.type-display-lg {
+  font-size: clamp(1.875rem, 3vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.type-headline-lg {
+  font-size: clamp(1.5rem, 2.5vw, 2rem);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.type-headline-md {
+  font-size: 1.5rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.type-headline-sm {
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.type-body-lg {
+  font-size: 1.125rem;
+  font-weight: 400;
+  line-height: 1.75;
+}
+
+.type-body-md {
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.65;
+}
+
+.type-body-sm {
+  font-size: 0.9375rem;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.type-label-lg {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.type-label-md {
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.type-label-sm {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
