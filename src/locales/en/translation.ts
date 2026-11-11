@@ -192,7 +192,6 @@ export const enTranslation = {
     loginSuccessToast: 'Authenticated! Redirecting to dashboard...',
     invalidCredentials: 'Invalid email or password. Please verify your credentials and try again.',
     notAuthorized: 'This account is not authorized as an active administrator.',
-    demoCredentialsLabel: 'Administrator Sign In:',
     securityNote:
       'This portal is restricted to active authorized administrators and enforced by database Row Level Security and audit logging.',
     newPasswordTitle: 'Set New Password',
