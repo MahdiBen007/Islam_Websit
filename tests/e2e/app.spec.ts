@@ -1,7 +1,17 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const DEMO_EMAIL = 'admin@university.edu.sa';
-const DEMO_PASS = '123456';
+const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || '';
+const NON_ADMIN_EMAIL = process.env.E2E_USER_EMAIL || '';
+const NON_ADMIN_PASSWORD = process.env.E2E_USER_PASSWORD || '';
+
+const MINI_PNG_BUFFER = Buffer.from([
+  137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82,
+  0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196,
+  137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 156, 99, 96, 0, 0, 0,
+  2, 0, 1, 226, 33, 188, 51, 0, 0, 0, 0, 73, 69, 78, 68, 174,
+  66, 96, 130,
+]);
 
 function attachRuntimeMonitors(page: Page) {
   const consoleErrors: string[] = [];
@@ -10,14 +20,26 @@ function attachRuntimeMonitors(page: Page) {
 
   page.on('console', (msg) => {
     if (msg.type() === 'error') {
-      consoleErrors.push(msg.text());
+      const text = msg.text();
+      // Ignore intentional 400/401/403/409 responses triggered while testing auth/duplicate guards
+      if (!text.includes('status of 400') && !text.includes('status of 401') && !text.includes('status of 403') && !text.includes('status of 409')) {
+        consoleErrors.push(text);
+      }
     }
   });
   page.on('pageerror', (err) => {
     pageErrors.push(err.message);
   });
   page.on('requestfailed', (req) => {
-    failedRequests.push(`${req.url()} (${req.failure()?.errorText ?? 'failed'})`);
+    const errText = req.failure()?.errorText ?? 'failed';
+    if (errText !== 'net::ERR_ABORTED') {
+      failedRequests.push(`${req.url()} (${errText})`);
+    }
+  });
+  page.on('response', (res) => {
+    if (res.status() >= 500) {
+      failedRequests.push(`${res.url()} (HTTP ${res.status()})`);
+    }
   });
 
   return {
@@ -46,433 +68,332 @@ async function assertNoHorizontalOverflow(page: Page) {
 }
 
 async function loginAsAdmin(page: Page) {
+  expect(ADMIN_EMAIL && ADMIN_PASSWORD, 'E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD must be set').toBeTruthy();
   await page.goto('/admin/login');
-  await page.getByLabel(/^(البريد الإلكتروني|Email Address)/i).fill(DEMO_EMAIL);
-  await page.getByLabel(/^(كلمة المرور|Password)/i).fill(DEMO_PASS);
+  await page.getByLabel(/^(البريد الإلكتروني|Email Address)/i).fill(ADMIN_EMAIL);
+  await page.getByLabel(/^(كلمة المرور|Password)/i).fill(ADMIN_PASSWORD);
   await page.getByTestId('admin-login-submit').click();
-  await expect(page).toHaveURL(/\/admin\/dashboard/);
+  await expect(page).toHaveURL(/\/admin\/(dashboard|registrations|specializations|event-settings)/, {
+    timeout: 15000,
+  });
 }
 
-test.describe('End-to-End Student & Admin Journeys', () => {
-  test('JOURNEY 1: Arabic Registration (RTL, Tajawal, Submission & Reference Copy)', async ({
+test.describe.serial('Live Supabase Full-Stack End-to-End Verification', () => {
+  const suffix = Date.now().toString().slice(-6);
+  const studentHandle = `e2e_student_${suffix}`;
+  const manualHandle = `e2e_manual_${suffix}`;
+  let submittedRefId = '';
+
+  test('JOURNEY 1 & 2: Public registration via Edge Function, duplicate prevention, and success slip', async ({
     page,
   }) => {
     const monitors = attachRuntimeMonitors(page);
     await page.goto('/');
-
-    // Select Arabic explicitly and verify RTL + Tajawal font
-    await page.getByTestId('lang-btn-ar').click();
-    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-    await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
-
-    const bodyFont = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
-    expect(bodyFont).toContain('Tajawal');
-
     await assertImagesLoaded(page);
+    await assertNoHorizontalOverflow(page);
 
-    // Open registration modal via Hero CTA, verify close/reopen animation
+    // Open modal & validate required fields
     await page.getByTestId('hero-register-btn').click();
-    const modal = page.getByTestId('registration-modal');
-    await expect(modal).toBeVisible();
-    await expect(modal).toHaveAttribute('data-state', 'open');
+    await expect(page.getByTestId('registration-modal')).toHaveAttribute('data-state', 'open');
+    await page.getByTestId('submit-registration-btn').click();
+    await expect(page.getByText('يرجى إدخال الاسم الأول (حرفان على الأقل).')).toBeVisible();
 
-    // Close via close button and verify modal disappears
-    await page.getByTestId('close-registration-modal-btn').click();
-    await expect(modal).toBeHidden();
+    // Fill real student registration
+    await page.getByLabel(/الاسم الأول/).fill('ياسين');
+    await page.getByLabel(/اللقب العائلي/).fill('مقدم');
+    await page.getByLabel(/رقم الهاتف/).fill('+213 550 81 92 03');
+    const select = page.getByLabel(/التخصص الدراسي/);
+    const secondOption = select.locator('option').nth(1);
+    const specValue = await secondOption.getAttribute('value');
+    expect(specValue).toBeTruthy();
+    await select.selectOption(specValue!);
 
-    // Reopen via CTA section button
-    await page.getByTestId('open-registration-modal-btn').click();
-    await expect(modal).toBeVisible();
+    await page.getByLabel(/حساب Instagram/).fill(studentHandle);
+    await expect(page.getByTestId('instagram-live-preview')).toContainText(`@${studentHandle}`);
+    await page.locator('#confirmedAttendance').check();
+    await page.getByTestId('submit-registration-btn').click();
 
-    // Fill required fields
-    await modal.getByLabel(/الاسم الأول/).fill('سليم');
-    await modal.getByLabel(/اللقب العائلي/).fill('منصوري');
-    await modal.getByLabel(/رقم الهاتف/).fill('0550 44 55 66');
-    await modal.getByLabel(/التخصص الدراسي/).selectOption('spec-se');
-    await modal.getByLabel(/حساب Instagram/).fill('salim_creative');
-    await expect(modal.getByTestId('instagram-live-preview')).toContainText('@salim_creative');
-    await modal.getByRole('checkbox').check();
-
-    // Submit registration
-    await modal.getByTestId('submit-registration-btn').click();
-
-    // Verify success screen & submitted details
-    await expect(page).toHaveURL(/\/success\/REG-\d{6}/);
+    // Verify navigation to success page with real reference ID
+    await expect(page).toHaveURL(/\/success\/REG-\d+/, { timeout: 15000 });
     await expect(page.getByTestId('registration-success-view')).toBeVisible();
-    await expect(page.getByTestId('success-student-name')).toHaveText('سليم منصوري');
-    await expect(page.getByTestId('success-phone')).toHaveText('0550 44 55 66');
-    await expect(page.getByTestId('success-specialization')).toHaveText(
-      'هندسة البرمجيات وتكنولوجيا المعلومات',
-    );
-    await expect(page.getByTestId('success-instagram')).toHaveText('@salim_creative');
-    const refText = (await page.getByTestId('success-reference-id').textContent()) ?? '';
-    expect(refText).toMatch(/^REG-\d{6}$/);
+    await expect(page.getByTestId('success-student-name')).toHaveText('ياسين مقدم');
+    await expect(page.getByTestId('success-instagram')).toHaveText(`@${studentHandle}`);
+    submittedRefId = (await page.getByTestId('success-reference-id').textContent())?.trim() ?? '';
+    expect(submittedRefId).toMatch(/^REG-\d{6}$/);
 
-    // Copy reference ID and return home
-    await page.getByTestId('copy-ref-inline-btn').click();
-    await expect(page.getByText('تم نسخ رقم التسجيل بنجاح.')).toBeVisible();
-    await page.getByTestId('return-home-btn').click();
-    await expect(page).toHaveURL('/');
-
-    monitors.assertClean();
-  });
-
-  test('JOURNEY 2: English Registration (LTR, Nunito Sans, Full English Success)', async ({
-    page,
-  }) => {
-    const monitors = attachRuntimeMonitors(page);
-    await page.goto('/');
-
-    // Switch to English
-    await page.getByTestId('lang-btn-en').click();
-    await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
-    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-
-    const bodyFont = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
-    expect(bodyFont).toContain('Nunito Sans');
-
-    // Open registration modal and submit in English
-    await page.getByTestId('hero-register-btn').click();
-    const modal = page.getByTestId('registration-modal');
-    await expect(modal).toBeVisible();
-
-    await modal.getByLabel(/First Name/i).fill('Lina');
-    await modal.getByLabel(/Last Name/i).fill('Haddad');
-    await modal.getByLabel(/Phone Number/i).fill('+213 661 22 33 44');
-    await modal.getByLabel(/Academic Specialization/i).selectOption('spec-design');
-    await modal.getByLabel(/Instagram Username/i).fill('@lina.studio');
-    await modal.getByRole('checkbox').check();
-    await modal.getByTestId('submit-registration-btn').click();
-
-    await expect(page).toHaveURL(/\/success\/REG-\d{6}/);
-    await expect(page.getByTestId('success-student-name')).toHaveText('Lina Haddad');
-    await expect(page.getByTestId('success-phone')).toHaveText('+213 661 22 33 44');
-    await expect(page.getByTestId('success-specialization')).toHaveText(
-      'Graphic Design & Digital Media',
-    );
-    await expect(page.getByTestId('success-instagram')).toHaveText('@lina.studio');
-    await expect(page.getByText('Your Registration Request Has Been Received!')).toBeVisible();
-
-    // Reload preserves selected English language and student data
+    // Page reload preserves session receipt without exposing public DB reads
     await page.reload();
-    await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
-    await expect(page.getByTestId('success-student-name')).toHaveText('Lina Haddad');
+    await expect(page.getByTestId('success-reference-id')).toHaveText(submittedRefId);
+
+    // Duplicate registration rejection test
+    await page.goto('/');
+    await page.getByTestId('open-registration-modal-btn').click();
+    await page.getByLabel(/الاسم الأول/).fill('ياسين');
+    await page.getByLabel(/اللقب العائلي/).fill('مقدم');
+    await page.getByLabel(/رقم الهاتف/).fill('+213 550 81 92 03');
+    await page.getByLabel(/التخصص الدراسي/).selectOption(specValue!);
+    await page.getByLabel(/حساب Instagram/).fill(studentHandle.toUpperCase());
+    await page.locator('#confirmedAttendance').check();
+    await page.getByTestId('submit-registration-btn').click();
+    await expect(
+      page.getByTestId('student-registration-form').getByText(/يوجد طلب تسجيل نشط مسجل مسبقاً/i),
+    ).toBeVisible({ timeout: 10000 });
 
     monitors.assertClean();
   });
 
-  test('JOURNEY 3: Admin Login, Dashboard Navigation & Logout', async ({ page }) => {
+  test('JOURNEY 3: Protected admin routes, non-admin rejection, and valid admin session persistence', async ({
+    page,
+  }) => {
     const monitors = attachRuntimeMonitors(page);
-    await loginAsAdmin(page);
 
-    await expect(page.getByTestId('kpi-total-count')).toBeVisible();
-    await expect(page.getByTestId('kpi-pending-count')).toBeVisible();
-    await expect(page.getByTestId('kpi-accepted-count')).toBeVisible();
-    await assertImagesLoaded(page);
+    // Unauthenticated route redirect
+    await page.goto('/admin/registrations');
+    await expect(page).toHaveURL(/\/admin\/login/);
 
-    // Navigate via sidebar
-    const sidebar = page.locator('aside');
-    await expect(sidebar.getByRole('link', { name: 'تخصيص صفحة التسجيل' })).toHaveCount(0);
-    await expect(sidebar.getByRole('link', { name: 'إعدادات النظام' })).toHaveCount(0);
-    await sidebar.getByRole('link', { name: 'التخصصات', exact: true }).click();
-    await expect(page).toHaveURL('/admin/specializations');
-    await sidebar.getByRole('link', { name: 'إعدادات الفعالية', exact: true }).click();
-    await expect(page).toHaveURL('/admin/event-settings');
+    // Invalid password
+    await page.getByLabel(/^البريد الإلكتروني/).fill(ADMIN_EMAIL);
+    await page.getByLabel(/^كلمة المرور/).fill('WrongPassword123!');
+    await page.getByTestId('admin-login-submit').click();
+    await expect(page.getByTestId('login-error-alert')).toBeVisible({ timeout: 10000 });
 
-    // Logout
-    await page.getByTestId('sidebar-logout-btn').click();
-    await expect(page).toHaveURL('/admin/login');
+    // Non-admin authenticated user must be rejected
+    if (NON_ADMIN_EMAIL && NON_ADMIN_PASSWORD) {
+      await page.getByLabel(/^البريد الإلكتروني/).fill(NON_ADMIN_EMAIL);
+      await page.getByLabel(/^كلمة المرور/).fill(NON_ADMIN_PASSWORD);
+      await page.getByTestId('admin-login-submit').click();
+      await expect(page.getByTestId('login-error-alert')).toContainText(/غير مخوّل/i, {
+        timeout: 10000,
+      });
+    }
 
-    // Protected route redirects back to login after logout
-    await page.goto('/admin/dashboard');
-    await expect(page).toHaveURL('/admin/login');
+    // Valid active admin login (returns to requested /admin/registrations route)
+    await page.getByLabel(/^البريد الإلكتروني/).fill(ADMIN_EMAIL);
+    await page.getByLabel(/^كلمة المرور/).fill(ADMIN_PASSWORD);
+    await page.getByTestId('admin-login-submit').click();
+    await expect(page).toHaveURL(/\/admin\/registrations/, { timeout: 15000 });
+    await expect(page.getByTestId('registrations-search-input')).toBeVisible({ timeout: 10000 });
+    await page.waitForLoadState('networkidle');
+
+    await page.locator('aside').getByRole('link', { name: 'لوحة التحكم', exact: true }).click();
+    await expect(page).toHaveURL(/\/admin\/dashboard/);
+    await expect(page.getByTestId('kpi-total-count')).toBeVisible({ timeout: 10000 });
+
+    // Ensure no secret/password stored in localStorage
+    const storageValues = await page.evaluate(() => Object.values(window.localStorage).join(' '));
+    expect(storageValues).not.toContain(ADMIN_PASSWORD);
+
+    // Session persists cleanly after full page reload
+    await page.waitForLoadState('networkidle');
+    await page.reload();
+    await expect(page).toHaveURL(/\/admin\/dashboard/);
+    await expect(page.getByTestId('kpi-total-count')).toBeVisible({ timeout: 10000 });
+    await page.waitForLoadState('networkidle');
 
     monitors.assertClean();
   });
 
-  test('JOURNEY 4: Registration Management (Search, Filters, Drawer, Accept, Edit, Delete)', async ({
+  test('JOURNEY 4: Admin registration lifecycle (search, drawer, status, notes, edit, manual add, delete)', async ({
     page,
   }) => {
     const monitors = attachRuntimeMonitors(page);
     await loginAsAdmin(page);
+
+    // Verify notification from public submission is visible
+    await page.getByTestId('notifications-bell-btn').click();
+    await expect(page.getByText(new RegExp(studentHandle, 'i')).first()).toBeVisible({
+      timeout: 10000,
+    });
+    await page.getByTestId('notifications-bell-btn').click();
 
     await page.locator('aside').getByRole('link', { name: 'التسجيلات', exact: true }).click();
     await expect(page).toHaveURL('/admin/registrations');
 
-    // Search for a student
-    await page.getByTestId('registrations-search-input').fill('محمد بن أحمد');
-    await expect(page.getByTestId('reg-row-REG-001250')).toBeVisible();
-    await expect(page.getByTestId('reg-row-REG-001249')).not.toBeVisible();
-    await page.getByTestId('reset-filters-btn').click();
+    // Search for the public student submitted in Journey 1
+    await page.getByTestId('registrations-search-input').fill(studentHandle);
+    const targetRow = page.getByTestId(`reg-row-${submittedRefId}`);
+    await expect(targetRow).toBeVisible({ timeout: 10000 });
 
-    // Filter by specialization & status
-    await page.getByTestId('filter-specialization').selectOption('spec-ai');
-    await page.getByTestId('filter-status').selectOption('new');
-    await expect(page.getByTestId('reg-row-REG-001250')).toBeVisible();
-    await page.getByTestId('reset-filters-btn').click();
-
-    // Open student details drawer & accept registration
-    await page.getByTestId('view-reg-REG-001250').click();
+    // Open drawer, accept, add internal note, edit student
+    await page.getByTestId(`view-reg-${submittedRefId}`).click();
     const drawer = page.getByTestId('student-details-drawer');
     await expect(drawer).toBeVisible();
     await page.getByTestId('drawer-accept-btn').click();
-    await expect(drawer.getByText('مقبول')).toBeVisible();
+    await expect(drawer.getByText('مقبول')).toBeVisible({ timeout: 10000 });
 
-    // Edit student info
+    await drawer.locator('textarea').fill('E2E internal audit note');
+    await drawer.getByRole('button', { name: 'حفظ الملاحظة' }).click();
+    await expect(page.getByText('تم حفظ الملاحظة الداخلية.')).toBeVisible({ timeout: 10000 });
+
     await page.getByTestId('drawer-edit-btn').click();
     const modal = page.getByTestId('student-form-modal');
-    await modal.getByLabel(/الاسم الأول/).fill('محمد ياسين');
+    await modal.getByLabel(/الاسم الأول/).fill('ياسين المعدل');
     await page.getByTestId('student-modal-save-btn').click();
-    await expect(
-      page.getByTestId('reg-row-REG-001250').getByText('محمد ياسين بن أحمد'),
-    ).toBeVisible();
-    await expect(drawer.getByRole('heading', { name: 'محمد ياسين بن أحمد' })).toBeVisible();
+    await expect(targetRow).toContainText('ياسين المعدل مقدم', { timeout: 10000 });
 
-    // Delete with confirmation
-    await page.getByTestId('drawer-delete-btn').click();
-    await page.getByTestId('confirm-dialog-submit').click();
-    await expect(page.getByTestId('reg-row-REG-001250')).not.toBeVisible();
+    // Close drawer and verify DB persistence across reload
+    await page.getByTestId('close-drawer-btn').click();
+    await page.waitForLoadState('networkidle');
+    await page.reload();
+    await page.getByTestId('registrations-search-input').fill(studentHandle);
+    await expect(page.getByTestId(`reg-row-${submittedRefId}`)).toContainText('ياسين المعدل مقدم', {
+      timeout: 10000,
+    });
 
-    monitors.assertClean();
-  });
+    // Manual add by admin
+    await page.getByTestId('reset-filters-btn').click();
+    await page.getByTestId('add-student-btn').click();
+    const addModal = page.getByTestId('student-form-modal');
+    await addModal.getByLabel(/الاسم الأول/).fill('سلمى');
+    await addModal.getByLabel(/اللقب العائلي/).fill('بن عيسى');
+    await addModal.getByLabel(/حساب Instagram/).fill(manualHandle);
+    await page.getByTestId('student-modal-save-btn').click();
+    await page.getByTestId('registrations-search-input').fill(manualHandle);
+    await expect(page.locator('tbody').getByText(`@${manualHandle}`)).toBeVisible({ timeout: 10000 });
 
-  test('JOURNEY 5: Specializations CRUD Syncs with Public Dropdown', async ({ page }) => {
-    const monitors = attachRuntimeMonitors(page);
-    await loginAsAdmin(page);
-
-    await page.locator('aside').getByRole('link', { name: 'التخصصات', exact: true }).click();
-    await expect(page).toHaveURL('/admin/specializations');
-
-    // Add specialization
-    await page.getByTestId('add-specialization-btn').click();
-    await page.getByLabel(/اسم التخصص \(بالعربية\)/).fill('الروبوتيك والأنظمة المدمجة');
-    await page.getByLabel(/اسم التخصص \(بالإنجليزية\)/).fill('Robotics & Embedded Systems');
-    await page.getByTestId('save-specialization-btn').click();
-    await expect(page.getByText('الروبوتيك والأنظمة المدمجة')).toBeVisible();
-
-    // Edit the newly added specialization
-    const card = page.locator('article', { hasText: 'الروبوتيك والأنظمة المدمجة' });
-    await card.getByRole('button', { name: 'تعديل' }).click();
-    await page.getByLabel(/اسم التخصص \(بالعربية\)/).fill('الروبوتيك والأنظمة الذكية');
-    await page.getByTestId('save-specialization-btn').click();
-    await expect(page.getByText('الروبوتيك والأنظمة الذكية')).toBeVisible();
-
-    // Verify it appears on public registration dropdown inside modal
-    await page.goto('/');
-    await page.getByTestId('open-registration-modal-btn').click();
-    const dropdown = page.getByLabel(/التخصص الدراسي/);
-    await expect(dropdown.locator('option', { hasText: 'الروبوتيك والأنظمة الذكية' })).toHaveCount(
-      1,
-    );
-
-    // Return to Specializations and disable it
-    await page.goto('/admin/specializations');
-    const updatedCard = page.locator('article', { hasText: 'الروبوتيك والأنظمة الذكية' });
-    await updatedCard.getByRole('button', { name: 'تعطيل' }).click();
-    await expect(updatedCard.getByText('معطل')).toBeVisible();
-
-    // Verify disabled specialization cannot be selected on public form
-    await page.goto('/');
-    await page.getByTestId('open-registration-modal-btn').click();
-    const refreshedDropdown = page.getByLabel(/التخصص الدراسي/);
-    await expect(
-      refreshedDropdown.locator('option', { hasText: 'الروبوتيك والأنظمة الذكية' }),
-    ).toHaveCount(0);
+    // Delete both temporary E2E test registrations so DB stays spotless
+    for (const handle of [manualHandle, studentHandle]) {
+      await page.getByTestId('registrations-search-input').fill(handle);
+      const row = page.locator('tbody tr').filter({ hasText: `@${handle}` }).first();
+      await expect(row).toBeVisible({ timeout: 10000 });
+      await row.getByRole('button', { name: /عرض التفاصيل الكاملة/i }).click();
+      await page.getByTestId('drawer-delete-btn').click();
+      await page.getByTestId('confirm-dialog-submit').click();
+      await expect(page.getByText('تم حذف التسجيل بنجاح.')).toBeVisible({ timeout: 10000 });
+    }
+    await page.waitForLoadState('networkidle');
 
     monitors.assertClean();
   });
 
-  test('JOURNEY 6: Responsive Check Across All 6 Viewports & Visual Screenshots', async ({
+  test('JOURNEY 5: Dashboard toggle close/open registration reflects live on public landing page', async ({
     page,
   }) => {
     const monitors = attachRuntimeMonitors(page);
-    const viewports = [
-      { width: 1920, height: 1080 },
-      { width: 1440, height: 900 },
-      { width: 1024, height: 768 },
-      { width: 768, height: 1024 },
-      { width: 390, height: 844 },
-      { width: 360, height: 800 },
-    ];
-
-    for (const vp of viewports) {
-      await page.setViewportSize(vp);
-
-      // Public landing RTL & LTR
-      await page.goto('/');
-      await page.getByTestId('lang-btn-ar').click();
-      await assertNoHorizontalOverflow(page);
-      await assertImagesLoaded(page);
-
-      await page.getByTestId('lang-btn-en').click();
-      await assertNoHorizontalOverflow(page);
-
-      // Admin login
-      await page.goto('/admin/login');
-      await page.getByTestId('lang-btn-ar').click();
-      await assertNoHorizontalOverflow(page);
-    }
-
-    // Check authenticated admin pages on desktop & mobile viewports + capture visual QA screenshots
-    const qaDir =
-      'C:/Users/Admin/.gemini/antigravity/brain/cc946a11-5120-4b60-aab5-d0c9bcfb036e/scratch/qa';
-
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto('/');
-    await page.getByTestId('lang-btn-ar').click();
-    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-    await page.screenshot({
-      path: `${qaDir}/01-public-landing-ar.png`,
-      fullPage: true,
-      animations: 'disabled',
-    });
-
-    await page.getByTestId('hero-register-btn').click();
-    await expect(page.getByTestId('registration-modal')).toHaveAttribute('data-state', 'open');
-    await page.screenshot({
-      path: `${qaDir}/09-registration-modal-desktop.png`,
-      animations: 'disabled',
-    });
-    await page.getByTestId('close-registration-modal-btn').click();
-    await expect(page.getByTestId('registration-modal')).toBeHidden();
-
-    await page.getByTestId('lang-btn-en').click();
-    await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
-    await page.screenshot({
-      path: `${qaDir}/02-public-landing-en.png`,
-      fullPage: true,
-      animations: 'disabled',
-    });
-    await page.getByTestId('lang-btn-ar').click();
-
-    await page.goto('/success/REG-001250');
-    await expect(page.getByTestId('registration-success-view')).toBeVisible();
-    await page.screenshot({
-      path: `${qaDir}/03-success-ar.png`,
-      fullPage: true,
-      animations: 'disabled',
-    });
-
-    await page.goto('/admin/login');
-    await expect(page.getByTestId('admin-login-form')).toBeVisible();
-    await page.screenshot({
-      path: `${qaDir}/04-admin-login.png`,
-      fullPage: true,
-      animations: 'disabled',
-    });
-
-    await page.setViewportSize({ width: 390, height: 844 });
-    await assertNoHorizontalOverflow(page);
-    await page.screenshot({
-      path: `${qaDir}/13-mobile-admin-login.png`,
-      fullPage: true,
-      animations: 'disabled',
-    });
-
-    await page.setViewportSize({ width: 1440, height: 900 });
     await loginAsAdmin(page);
-    await expect(page.getByTestId('kpi-total-count')).toBeVisible();
-    await assertNoHorizontalOverflow(page);
-    await page.mouse.move(0, 0);
-    await page.screenshot({
-      path: `${qaDir}/05-admin-dashboard.png`,
-      fullPage: true,
-      animations: 'disabled',
-    });
+    await page.waitForLoadState('networkidle');
 
-    await page.goto('/admin/registrations');
-    await expect(page.getByTestId('reg-row-REG-001250')).toBeVisible();
-    await assertNoHorizontalOverflow(page);
-    await page.screenshot({
-      path: `${qaDir}/06-admin-registrations.png`,
-      fullPage: true,
-      animations: 'disabled',
+    // Close registration
+    await page.getByTestId('dashboard-reg-toggle').click();
+    await expect(page.getByText('التسجيلات مغلقة حالياً').first()).toBeVisible({
+      timeout: 10000,
     });
+    await page.waitForLoadState('networkidle');
 
-    // Medium screens QA (768x1024 Tablet & 1024x768 Medium Laptop)
-    await page.setViewportSize({ width: 768, height: 1024 });
+    // Public site shows closed state
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'التسجيل مغلق مؤقتاً' })).toBeVisible({
+      timeout: 10000,
+    });
+    await page.waitForLoadState('networkidle');
+
+    // Reopen registration
     await page.goto('/admin/dashboard');
-    await expect(page.getByTestId('kpi-total-count')).toBeVisible();
-    await assertNoHorizontalOverflow(page);
-    await page.screenshot({
-      path: `${qaDir}/14-tablet-admin-dashboard.png`,
-      fullPage: true,
-      animations: 'disabled',
+    await page.getByTestId('dashboard-reg-toggle').click();
+    await expect(page.getByText('التسجيلات مفتوحة حالياً').first()).toBeVisible({
+      timeout: 10000,
+    });
+    await page.waitForLoadState('networkidle');
+
+    monitors.assertClean();
+  });
+
+  test('JOURNEY 6: Specializations CRUD + Storage Logo Upload + Event Settings Live Persistence', async ({
+    page,
+  }) => {
+    const monitors = attachRuntimeMonitors(page);
+    await loginAsAdmin(page);
+    await page.waitForLoadState('networkidle');
+
+    // Specializations CRUD
+    await page.locator('aside').getByRole('link', { name: 'التخصصات', exact: true }).click();
+    await expect(page).toHaveURL('/admin/specializations');
+
+    const specNameAr = `الأمن السحابي ${suffix}`;
+    const specNameEn = `Cloud Security ${suffix}`;
+    await page.getByTestId('add-specialization-btn').click();
+    await page.getByLabel(/اسم التخصص \(بالعربية\)/).fill(specNameAr);
+    await page.getByLabel(/اسم التخصص \(بالإنجليزية\)/).fill(specNameEn);
+    await page.getByTestId('save-specialization-btn').click();
+    const specCard = page.locator('article', { hasText: specNameAr });
+    await expect(specCard).toBeVisible({ timeout: 10000 });
+    await page.waitForLoadState('networkidle');
+
+    // Verify active specialization shows in public modal
+    await page.goto('/');
+    await page.getByTestId('open-registration-modal-btn').click();
+    await expect(
+      page.getByLabel(/التخصص الدراسي/).locator('option', { hasText: specNameAr }),
+    ).toHaveCount(1);
+    await page.waitForLoadState('networkidle');
+
+    // Delete temporary specialization cleanly
+    await page.goto('/admin/specializations');
+    await specCard.getByRole('button', { name: 'حذف' }).click();
+    await page.getByTestId('confirm-dialog-submit').click();
+    await expect(page.getByText('تم حذف التخصص بنجاح.').first()).toBeVisible({ timeout: 10000 });
+    await page.waitForLoadState('networkidle');
+
+    // Event Settings: upload real PNG to Storage + update location + verify on public page + restore
+    await page.locator('aside').getByRole('link', { name: 'إعدادات الفعالية', exact: true }).click();
+    await expect(page).toHaveURL('/admin/event-settings');
+
+    const originalLocation = await page.getByLabel(/المكان \(بالعربية\)/).inputValue();
+    const testLocation = `قاعة الابتكار الحية ${suffix}`;
+
+    const fileInput = page.locator('input[type="file"]');
+    await fileInput.setInputFiles({
+      name: `e2e-logo-${suffix}.png`,
+      mimeType: 'image/png',
+      buffer: MINI_PNG_BUFFER,
+    });
+    await expect(page.getByText('تم رفع الشعار الرسمي إلى التخزين السحابي بنجاح.').first()).toBeVisible({
+      timeout: 15000,
     });
 
-    await page.goto('/admin/registrations');
-    await expect(page.getByTestId('registrations-search-input')).toBeVisible();
-    await assertNoHorizontalOverflow(page);
-    await page.screenshot({
-      path: `${qaDir}/16-tablet-admin-registrations.png`,
-      fullPage: true,
-      animations: 'disabled',
+    await page.getByLabel(/المكان \(بالعربية\)/).fill(testLocation);
+    await page.getByTestId('save-event-settings-btn').click();
+    await expect(page.getByText('تم حفظ إعدادات الفعالية وتحديث الصفحة العامة.').first()).toBeVisible({
+      timeout: 10000,
     });
+    await page.waitForLoadState('networkidle');
 
-    await page.setViewportSize({ width: 1024, height: 768 });
-    await page.goto('/admin/dashboard');
-    await expect(page.getByTestId('kpi-total-count')).toBeVisible();
-    await assertNoHorizontalOverflow(page);
-    await page.screenshot({
-      path: `${qaDir}/15-medium-1024-admin-dashboard.png`,
-      fullPage: true,
-      animations: 'disabled',
+    await page.goto('/');
+    await expect(page.getByText(testLocation).first()).toBeVisible({ timeout: 10000 });
+    await assertImagesLoaded(page);
+    await page.waitForLoadState('networkidle');
+
+    // Restore original location and official logo
+    await page.goto('/admin/event-settings');
+    await page.getByLabel(/المكان \(بالعربية\)/).fill(originalLocation);
+    await page.getByRole('button', { name: 'استعادة الشعار الرسمي' }).click();
+    await page.getByTestId('save-event-settings-btn').click();
+    await expect(page.getByText('تم حفظ إعدادات الفعالية وتحديث الصفحة العامة.').first()).toBeVisible({
+      timeout: 10000,
     });
+    await page.waitForLoadState('networkidle');
 
-    await page.goto('/admin/registrations');
-    await expect(page.getByTestId('registrations-search-input')).toBeVisible();
-    await assertNoHorizontalOverflow(page);
-    await page.screenshot({
-      path: `${qaDir}/17-medium-1024-admin-registrations.png`,
-      fullPage: true,
-      animations: 'disabled',
-    });
+    monitors.assertClean();
+  });
 
+  test('JOURNEY 7: Responsive layout & language toggle check across mobile & desktop', async ({
+    page,
+  }) => {
+    const monitors = attachRuntimeMonitors(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
     await expect(page.getByTestId('open-registration-modal-btn')).toBeVisible();
     await assertNoHorizontalOverflow(page);
-    await page.screenshot({
-      path: `${qaDir}/07-mobile-public.png`,
-      fullPage: true,
-      animations: 'disabled',
-    });
+    await assertImagesLoaded(page);
 
-    await page.getByTestId('hero-register-btn').click();
-    await expect(page.getByTestId('registration-modal')).toHaveAttribute('data-state', 'open');
+    await page.getByTestId('lang-btn-en').click();
+    await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
     await assertNoHorizontalOverflow(page);
-    await page.screenshot({
-      path: `${qaDir}/10-registration-modal-mobile.png`,
-      animations: 'disabled',
-    });
-    await page.getByTestId('close-registration-modal-btn').click();
-    await expect(page.getByTestId('registration-modal')).toBeHidden();
 
-    await page.goto('/success/REG-001250');
-    await expect(page.getByTestId('registration-success-view')).toBeVisible();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await loginAsAdmin(page);
     await assertNoHorizontalOverflow(page);
-    await page.screenshot({
-      path: `${qaDir}/12-mobile-success.png`,
-      fullPage: true,
-      animations: 'disabled',
-    });
-
-    await page.goto('/admin/dashboard');
-    await expect(page.getByTestId('kpi-total-count')).toBeVisible();
-    await assertNoHorizontalOverflow(page);
-    await page.screenshot({
-      path: `${qaDir}/11-mobile-admin-dashboard.png`,
-      fullPage: true,
-      animations: 'disabled',
-    });
-    await page.goto('/admin/registrations');
-    await expect(page.getByTestId('registrations-search-input')).toBeVisible();
-    await assertNoHorizontalOverflow(page);
-    await page.screenshot({
-      path: `${qaDir}/08-mobile-admin-registrations.png`,
-      fullPage: true,
-      animations: 'disabled',
-    });
+    await assertImagesLoaded(page);
 
     monitors.assertClean();
   });

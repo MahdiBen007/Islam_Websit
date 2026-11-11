@@ -16,6 +16,7 @@ import { ConfirmDialog } from '@/components/feedback/ConfirmDialog';
 import { useAppData } from '@/app/providers/AppDataProvider';
 import { useToast } from '@/app/providers/ToastProvider';
 import { useLanguage } from '@/hooks/useLanguage';
+import { isAppServiceError } from '@/services/api/errors';
 import { specializationService } from '@/services/specializations/specializationService';
 import type { Specialization } from '@/types/domain';
 
@@ -49,7 +50,7 @@ const ICON_OPTIONS: Array<{ value: Specialization['icon']; labelAr: string; labe
 ];
 
 export function SpecializationsPage() {
-  const { specializations, registrations } = useAppData();
+  const { specializations, specializationCounts } = useAppData();
   const { language, t } = useLanguage();
   const { showToast } = useToast();
 
@@ -60,11 +61,11 @@ export function SpecializationsPage() {
 
   const registrationCounts = useMemo(() => {
     const map = new Map<string, number>();
-    registrations.forEach((r) => {
-      map.set(r.specializationId, (map.get(r.specializationId) ?? 0) + 1);
+    Object.entries(specializationCounts).forEach(([specId, count]) => {
+      map.set(specId, count);
     });
     return map;
-  }, [registrations]);
+  }, [specializationCounts]);
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -109,26 +110,47 @@ export function SpecializationsPage() {
   }, [modalOpen, editingSpec, reset]);
 
   const onSubmit = async (values: SpecializationFormValues) => {
-    if (editingSpec) {
-      await specializationService.update(editingSpec.id, values);
-      showToast(t('admin.specializations.toasts.updated'), 'success');
-    } else {
-      await specializationService.create(values);
-      showToast(t('admin.specializations.toasts.created'), 'success');
+    try {
+      if (editingSpec) {
+        await specializationService.update(editingSpec.id, values);
+        showToast(t('admin.specializations.toasts.updated'), 'success');
+      } else {
+        await specializationService.create(values);
+        showToast(t('admin.specializations.toasts.created'), 'success');
+      }
+      setModalOpen(false);
+    } catch (error) {
+      const msg =
+        isAppServiceError(error) && error.code === 'SPECIALIZATION_DUPLICATE'
+          ? t('admin.specializations.toasts.duplicateError')
+          : t('admin.specializations.toasts.error');
+      showToast(msg, 'error');
     }
-    setModalOpen(false);
   };
 
   const handleToggle = async (spec: Specialization) => {
-    await specializationService.toggleActive(spec.id);
-    showToast(t('admin.specializations.toasts.toggled'), 'info');
+    try {
+      await specializationService.toggleActive(spec.id);
+      showToast(t('admin.specializations.toasts.toggled'), 'info');
+    } catch {
+      showToast(t('admin.specializations.toasts.error'), 'error');
+    }
   };
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
-    await specializationService.remove(deleteTarget.id);
-    setDeleteTarget(null);
-    showToast(t('admin.specializations.toasts.deleted'), 'success');
+    try {
+      await specializationService.remove(deleteTarget.id);
+      setDeleteTarget(null);
+      showToast(t('admin.specializations.toasts.deleted'), 'success');
+    } catch (error) {
+      setDeleteTarget(null);
+      const msg =
+        isAppServiceError(error) && error.code === 'SPECIALIZATION_IN_USE'
+          ? t('admin.specializations.toasts.inUseError')
+          : t('admin.specializations.toasts.error');
+      showToast(msg, 'error');
+    }
   };
 
   return (

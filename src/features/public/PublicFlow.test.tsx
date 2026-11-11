@@ -13,7 +13,7 @@ describe('Public Student Registration Experience', () => {
     expect(screen.queryByTestId('registration-modal')).not.toBeInTheDocument();
 
     // Open modal via Hero CTA
-    await user.click(screen.getByTestId('hero-register-btn'));
+    await user.click(await screen.findByTestId('hero-register-btn'));
     expect(await screen.findByTestId('registration-modal')).toBeInTheDocument();
 
     // Close modal via close button and verify removal after exit animation
@@ -75,7 +75,7 @@ describe('Public Student Registration Experience', () => {
 
     expect(document.documentElement.dir).toBe('rtl');
     expect(document.documentElement.lang).toBe('ar');
-    expect(screen.getByText('أطلق إبداعك وكن جزءاً من التغيير!')).toBeInTheDocument();
+    expect(await screen.findByText('أطلق إبداعك وكن جزءاً من التغيير!')).toBeInTheDocument();
 
     // Switch to English
     await user.click(screen.getByTestId('lang-btn-en'));
@@ -111,7 +111,7 @@ describe('Public Student Registration Experience', () => {
     await specializationService.toggleActive('spec-humanities');
     renderAtRoute('/');
 
-    await user.click(screen.getByTestId('open-registration-modal-btn'));
+    await user.click(await screen.findByTestId('open-registration-modal-btn'));
     const select = await screen.findByLabelText(/التخصص الدراسي/i);
     const optionTexts = Array.from(select.querySelectorAll('option')).map((o) => o.textContent);
 
@@ -155,5 +155,33 @@ describe('Public Student Registration Experience', () => {
     await user.click(screen.getByTestId('copy-ref-inline-btn'));
     expect(writeTextMock).toHaveBeenCalledWith(refId);
     expect(await screen.findByText('تم نسخ رقم التسجيل بنجاح.')).toBeInTheDocument();
+  });
+
+  it('rejects fake names, dummy sequential/repeated phones, and blocks bot honeypot fills', async () => {
+    const user = userEvent.setup();
+    renderAtRoute('/');
+
+    await user.click(await screen.findByTestId('hero-register-btn'));
+    const firstNameInput = await screen.findByLabelText(/الاسم الأول/i);
+    const phoneInput = screen.getByLabelText(/رقم الهاتف/i);
+
+    await user.type(firstNameInput, 'https://spam-link.com');
+    await user.type(phoneInput, '00000000');
+    await user.click(screen.getByTestId('submit-registration-btn'));
+
+    expect(
+      await screen.findByText('يرجى إدخال اسم حقيقي يحتوي على أحرف صالحة بدون روابط أو رموز.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('رقم الهاتف غير صالح. يرجى إدخال رقم صحيح مكوّن من 8 إلى 15 رقماً.'),
+    ).toBeInTheDocument();
+
+    // Sequential fake phone should also fail
+    await user.clear(phoneInput);
+    await user.type(phoneInput, '01234567');
+    await user.click(screen.getByTestId('submit-registration-btn'));
+    expect(
+      await screen.findByText('رقم الهاتف غير صالح. يرجى إدخال رقم صحيح مكوّن من 8 إلى 15 رقماً.'),
+    ).toBeInTheDocument();
   });
 });

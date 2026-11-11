@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { RotateCcw, Save, Upload } from 'lucide-react';
 import officialLogo from '@/assets/club-logo.png';
@@ -6,13 +6,19 @@ import { useAppData } from '@/app/providers/AppDataProvider';
 import { useToast } from '@/app/providers/ToastProvider';
 import { useLanguage } from '@/hooks/useLanguage';
 import { settingsService } from '@/services/settings/settingsService';
+import { storageService } from '@/services/storage/storageService';
 import type { EventSettings } from '@/types/domain';
+
+type EventSettingsFormValues = EventSettings & {
+  eventLogoPath?: string | null;
+};
 
 export function EventSettingsPage() {
   const { eventSettings } = useAppData();
   const { t } = useLanguage();
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
   const {
     register,
@@ -21,7 +27,7 @@ export function EventSettingsPage() {
     watch,
     setValue,
     formState: { isSubmitting },
-  } = useForm<EventSettings>({
+  } = useForm<EventSettingsFormValues>({
     defaultValues: eventSettings,
   });
 
@@ -30,29 +36,43 @@ export function EventSettingsPage() {
   }, [eventSettings, reset]);
 
   const currentLogo = watch('logoDataUrl');
+  const currentLogoPath = watch('eventLogoPath');
 
-  const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 1024 * 1024) {
-      showToast('Max logo size is 1MB', 'error');
-      return;
+    setIsUploadingLogo(true);
+    try {
+      const uploaded = await storageService.uploadClubLogo(file, currentLogoPath);
+      setValue('logoDataUrl', uploaded.publicUrl, { shouldDirty: true });
+      setValue('eventLogoPath', uploaded.path, { shouldDirty: true });
+      showToast(t('admin.eventSettings.logoUploadedToast'), 'success');
+    } catch {
+      showToast(t('admin.eventSettings.logoUploadError'), 'error');
+    } finally {
+      setIsUploadingLogo(false);
+      if (e.target) e.target.value = '';
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setValue('logoDataUrl', reader.result, { shouldDirty: true });
-      }
-    };
-    reader.readAsDataURL(file);
   };
 
-  const onSubmit = async (values: EventSettings) => {
-    await settingsService.updateEventSettings({
-      ...values,
-      capacity: Number(values.capacity) || 150,
-    });
-    showToast(t('admin.eventSettings.savedToast'), 'success');
+  const handleRestoreOfficialLogo = async () => {
+    if (currentLogoPath) {
+      await storageService.deleteClubLogo(currentLogoPath).catch(() => undefined);
+    }
+    setValue('logoDataUrl', null, { shouldDirty: true });
+    setValue('eventLogoPath', null, { shouldDirty: true });
+  };
+
+  const onSubmit = async (values: EventSettingsFormValues) => {
+    try {
+      await settingsService.updateEventSettings({
+        ...values,
+        capacity: Number(values.capacity) || 150,
+      });
+      showToast(t('admin.eventSettings.savedToast'), 'success');
+    } catch {
+      showToast(t('admin.eventSettings.saveErrorToast'), 'error');
+    }
   };
 
   return (
@@ -105,17 +125,23 @@ export function EventSettingsPage() {
               />
               <button
                 type="button"
+                disabled={isUploadingLogo}
                 onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white border border-[#BBD0E8] text-[#12365C] hover:bg-[#EAF1FA] font-semibold type-label-sm cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white border border-[#BBD0E8] text-[#12365C] hover:bg-[#EAF1FA] font-semibold type-label-sm cursor-pointer disabled:opacity-60"
               >
                 <Upload className="w-4 h-4 text-[#1769B5]" aria-hidden="true" />
-                <span>{t('admin.eventSettings.uploadLogo')}</span>
+                <span>
+                  {isUploadingLogo
+                    ? t('admin.eventSettings.uploadingLogo')
+                    : t('admin.eventSettings.uploadLogo')}
+                </span>
               </button>
               {currentLogo && (
                 <button
                   type="button"
-                  onClick={() => setValue('logoDataUrl', null)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#FEF3C7] border border-[#FCD34D] text-[#92400E] hover:bg-[#FDE68A] font-semibold type-label-sm cursor-pointer"
+                  disabled={isUploadingLogo}
+                  onClick={() => void handleRestoreOfficialLogo()}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#FEF3C7] border border-[#FCD34D] text-[#92400E] hover:bg-[#FDE68A] font-semibold type-label-sm cursor-pointer disabled:opacity-60"
                 >
                   <RotateCcw className="w-4 h-4" aria-hidden="true" />
                   <span>{t('admin.eventSettings.restoreOfficialLogo')}</span>

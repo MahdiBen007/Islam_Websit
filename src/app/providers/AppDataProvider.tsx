@@ -3,8 +3,8 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
-  type ReactNode,
 } from 'react';
 import type {
   AdminNotification,
@@ -15,91 +15,149 @@ import type {
   StudentRegistration,
   SystemSettings,
 } from '@/types/domain';
+import { useAuth } from '@/app/providers/AuthProvider';
+import { appDataEvents } from '@/services/api/dataSync';
 import {
-  mockRepository,
-  subscribeToRepository,
-} from '@/services/storage/mockRepository';
+  EMPTY_EVENT_SETTINGS,
+  EMPTY_PAGE_SETTINGS,
+  EMPTY_REGISTRATION_STATS,
+  EMPTY_SYSTEM_SETTINGS,
+} from '@/services/defaults/initialPublicDefaults';
+import { notificationService } from '@/services/notifications/notificationService';
+import { registrationService } from '@/services/registrations/registrationService';
+import { settingsService } from '@/services/settings/settingsService';
+import { specializationService } from '@/services/specializations/specializationService';
 
-interface AppDataState {
+interface AppDataContextValue {
   registrations: StudentRegistration[];
   specializations: Specialization[];
+  activeSpecializations: Specialization[];
+  specializationCounts: Record<string, number>;
   stats: RegistrationStats;
   eventSettings: EventSettings;
   pageSettings: PageCustomizationSettings;
   systemSettings: SystemSettings;
   notifications: AdminNotification[];
-}
-
-interface AppDataContextValue extends AppDataState {
-  activeSpecializations: Specialization[];
   unreadCount: number;
   isLoading: boolean;
+  hasLoadedPublic: boolean;
+  error: string | null;
+  dataVersion: number;
   refreshAll: () => Promise<void>;
 }
 
 const AppDataContext = createContext<AppDataContextValue | null>(null);
 
-function loadSyncSnapshot(): AppDataState {
-  const registrations = [...mockRepository.getRegistrations()].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
-  const specializations = mockRepository.getSpecializations();
-  const eventSettings = mockRepository.getEventSettings();
-  const pageSettings = mockRepository.getPageSettings();
-  const systemSettings = mockRepository.getSystemSettings();
-  const notifications = mockRepository.getNotifications();
+export function AppDataProvider({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
-  const total = registrations.length;
-  const newCount = registrations.filter((r) => r.status === 'new').length;
-  const pending = registrations.filter((r) => r.status === 'pending' || r.status === 'new').length;
-  const approved = registrations.filter((r) => r.status === 'approved').length;
-  const rejected = registrations.filter((r) => r.status === 'rejected').length;
-  const capacity = eventSettings.capacity;
-  const remainingSeats = Math.max(0, capacity - total);
+  const [registrations, setRegistrations] = useState<StudentRegistration[]>([]);
+  const [specializations, setSpecializations] = useState<Specialization[]>([]);
+  const [specializationCounts, setSpecializationCounts] = useState<Record<string, number>>({});
+  const [stats, setStats] = useState<RegistrationStats>(EMPTY_REGISTRATION_STATS);
+  const [eventSettings, setEventSettings] = useState<EventSettings>(EMPTY_EVENT_SETTINGS);
+  const [pageSettings, setPageSettings] =
+    useState<PageCustomizationSettings>(EMPTY_PAGE_SETTINGS);
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>(EMPTY_SYSTEM_SETTINGS);
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadedPublic, setHasLoadedPublic] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [dataVersion, setDataVersion] = useState(0);
 
-  return {
-    registrations,
-    specializations,
-    stats: {
-      total,
-      newCount,
-      pending,
-      approved,
-      rejected,
-      capacity,
-      remainingSeats,
-    },
-    eventSettings,
-    pageSettings,
-    systemSettings,
-    notifications,
-  };
-}
+  const loadData = useCallback(async () => {
+    try {
+      setError(null);
+      const [specsRes, eventRes, pageRes, sysRes] = await Promise.allSettled([
+        specializationService.list(isAuthenticated),
+        settingsService.getEventSettings(),
+        settingsService.getPageSettings(),
+        settingsService.getSystemSettings(),
+      ]);
 
-export function AppDataProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AppDataState>(() => loadSyncSnapshot());
+      if (specsRes.status === 'fulfilled') setSpecializations(specsRes.value);
+      if (eventRes.status === 'fulfilled') setEventSettings(eventRes.value);
+      if (pageRes.status === 'fulfilled') setPageSettings(pageRes.value);
+      if (sysRes.status === 'fulfilled') setSystemSettings(sysRes.value);
 
-  const refreshAll = useCallback(async () => {
-    setState(loadSyncSnapshot());
-  }, []);
+      if (eventRes.status === 'fulfilled' && pageRes.status === 'fulfilled') {
+        setHasLoadedPublic(true);
+      } else {
+        const failedReason =
+          eventRes.status === 'rejected'
+            ? eventRes.reason
+            : pageRes.status === 'rejected'
+              ? pageRes.reason
+              : null;
+        setError(failedReason instanceof Error ? failedReason.message : 'Unable to load public data');
+      }
+
+      if (isAuthenticated) {
+        const [regsRes, statsRes, countsRes, notifsRes] = await Promise.allSettled([
+          registrationService.list(),
+          registrationService.getStats(),
+          specializationService.getRegistrationCounts(),
+          notificationService.list(),
+        ]);
+
+        if (regsRes.status === 'fulfilled') setRegistrations(regsRes.value);
+        if (statsRes.status === 'fulfilled') setStats(statsRes.value);
+        if (countsRes.status === 'fulfilled') setSpecializationCounts(countsRes.value);
+        if (notifsRes.status === 'fulfilled') setNotifications(notifsRes.value);
+      } else {
+        setRegistrations([]);
+        setSpecializationCounts({});
+        setStats(EMPTY_REGISTRATION_STATS);
+        setNotifications([]);
+      }
+      setDataVersion((v) => v + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load data');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
-    const unsubscribe = subscribeToRepository(() => {
-      setState(loadSyncSnapshot());
+    if (authLoading) return;
+    void loadData();
+    const unsubscribe = appDataEvents.subscribe(() => {
+      void loadData();
     });
     return unsubscribe;
-  }, []);
+  }, [authLoading, loadData]);
 
-  const activeSpecializations = state.specializations.filter((s) => s.isActive);
-  const unreadCount = state.notifications.filter((n) => !n.isRead).length;
+  const refreshAll = useCallback(async () => {
+    await loadData();
+  }, [loadData]);
+
+  const activeSpecializations = useMemo(
+    () => specializations.filter((s) => s.isActive),
+    [specializations],
+  );
+
+  const unreadCount = useMemo(
+    () => notifications.filter((n) => !n.isRead).length,
+    [notifications],
+  );
 
   return (
     <AppDataContext.Provider
       value={{
-        ...state,
+        registrations,
+        specializations,
         activeSpecializations,
+        specializationCounts,
+        stats,
+        eventSettings,
+        pageSettings,
+        systemSettings,
+        notifications,
         unreadCount,
-        isLoading: false,
+        isLoading,
+        hasLoadedPublic,
+        error,
+        dataVersion,
         refreshAll,
       }}
     >
@@ -108,11 +166,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
-export function useAppData(): AppDataContextValue {
+export function useAppData() {
   const ctx = useContext(AppDataContext);
   if (!ctx) {
-    throw new Error('useAppData must be used within AppDataProvider');
+    throw new Error('useAppData must be used inside AppDataProvider');
   }
   return ctx;
 }

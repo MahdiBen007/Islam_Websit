@@ -39,30 +39,43 @@ export function AdminDashboardPage() {
   const [deleteTarget, setDeleteTarget] = useState<StudentRegistration | null>(null);
 
   const toggleRegistrationAvailability = async () => {
-    const nextOpen = !pageSettings.isRegistrationOpen;
-    await settingsService.updatePageSettings({
-      ...pageSettings,
-      isRegistrationOpen: nextOpen,
-    });
-    showToast(
-      nextOpen ? t('admin.dashboard.regOpenBadge') : t('admin.dashboard.regClosedBadge'),
-      'info',
-    );
+    try {
+      const nextOpen = !pageSettings.isRegistrationOpen;
+      await settingsService.updatePageSettings({
+        ...pageSettings,
+        isRegistrationOpen: nextOpen,
+      });
+      showToast(
+        nextOpen ? t('admin.dashboard.regOpenBadge') : t('admin.dashboard.regClosedBadge'),
+        'info',
+      );
+    } catch {
+      showToast(t('admin.eventSettings.saveErrorToast'), 'error');
+    }
   };
 
   const handleStatusChange = async (id: string, status: RegistrationStatus) => {
-    await registrationService.updateStatus(id, status);
-    showToast(t('admin.registrations.toasts.statusUpdated'), 'success');
+    try {
+      await registrationService.updateStatus(id, status);
+      showToast(t('admin.registrations.toasts.statusUpdated'), 'success');
+    } catch {
+      showToast(t('admin.eventSettings.saveErrorToast'), 'error');
+    }
   };
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
-    await registrationService.remove(deleteTarget.id);
-    if (selectedStudent?.id === deleteTarget.id) {
-      setSelectedStudent(null);
+    try {
+      await registrationService.remove(deleteTarget.id);
+      if (selectedStudent?.id === deleteTarget.id) {
+        setSelectedStudent(null);
+      }
+      setDeleteTarget(null);
+      showToast(t('admin.registrations.toasts.deleted'), 'success');
+    } catch {
+      setDeleteTarget(null);
+      showToast(t('admin.eventSettings.saveErrorToast'), 'error');
     }
-    setDeleteTarget(null);
-    showToast(t('admin.registrations.toasts.deleted'), 'success');
   };
 
   const filteredRecent = (

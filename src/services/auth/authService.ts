@@ -1,105 +1,30 @@
-import type { IAuthService } from '@/services/api/types';
-import type { AdminUser, AuthSession } from '@/types/domain';
+import type { AuthSession, AdminUser } from '@/types/domain';
+import { getSupabaseClient } from '@/lib/supabaseClient';
+import { AppServiceError } from '@/services/api/errors';
+import type { AuthStateChangeEvent, IAuthService } from '@/services/api/types';
 
-/**
- * MOCK AUTHENTICATION SERVICE (FRONTEND DEMONSTRATION ONLY)
- * ---------------------------------------------------------
- * - Demo credentials are checked strictly inside this mock service and are
- *   NEVER persisted to localStorage or sessionStorage.
- * - Only non-secret session metadata (`AuthSession`) is stored for demo navigation.
- */
-
-const SESSION_KEY = 'cic_admin_demo_session_v1';
 const REMEMBER_EMAIL_KEY = 'cic_admin_remember_email_v1';
 
-export const DEMO_ADMIN_CREDENTIALS = {
-  email: 'admin@university.edu.sa',
-  password: '123456',
-} as const;
+let currentSessionCache: AuthSession | null = null;
+const inFlightProfileRequests = new Map<string, Promise<AdminUser | null>>();
 
-const DEMO_ADMIN_USER: AdminUser = {
-  id: 'admin-1',
-  nameAr: 'المسؤول',
-  nameEn: 'Administrator',
-  email: DEMO_ADMIN_CREDENTIALS.email,
-  roleAr: 'مدير النظام',
-  roleEn: 'System Admin',
-};
-
-function delay(ms: number): Promise<void> {
-  if (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') {
-    return Promise.resolve();
-  }
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function mapProfileToAdminUser(profile: {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  is_active: boolean;
+}): AdminUser {
+  const isSuper = profile.role === 'super_admin';
+  return {
+    id: profile.id,
+    email: profile.email,
+    nameAr: profile.full_name,
+    nameEn: profile.full_name,
+    roleAr: isSuper ? 'المشرف العام للنظام' : 'مشرف إدارة الفعاليات',
+    roleEn: isSuper ? 'System Super Administrator' : 'Event Administrator',
+  };
 }
-
-export const authService: IAuthService = {
-  async login(email: string, password: string, rememberMe: boolean): Promise<AuthSession> {
-    await delay(250);
-
-    const normalizedEmail = email.trim().toLowerCase();
-    if (
-      normalizedEmail !== DEMO_ADMIN_CREDENTIALS.email.toLowerCase() ||
-      password !== DEMO_ADMIN_CREDENTIALS.password
-    ) {
-      throw new Error('INVALID_CREDENTIALS');
-    }
-
-    const session: AuthSession = {
-      sessionId: `demo-session-${Date.now()}`,
-      user: DEMO_ADMIN_USER,
-      rememberMe,
-      authenticatedAt: new Date().toISOString(),
-    };
-
-    try {
-      const serialized = JSON.stringify(session);
-      if (rememberMe) {
-        window.localStorage.setItem(SESSION_KEY, serialized);
-        window.localStorage.setItem(REMEMBER_EMAIL_KEY, normalizedEmail);
-        window.sessionStorage.removeItem(SESSION_KEY);
-      } else {
-        window.sessionStorage.setItem(SESSION_KEY, serialized);
-        window.localStorage.removeItem(SESSION_KEY);
-        window.localStorage.removeItem(REMEMBER_EMAIL_KEY);
-      }
-    } catch {
-      // Ignore storage failures gracefully
-    }
-
-    return session;
-  },
-
-  async logout(): Promise<void> {
-    try {
-      window.localStorage.removeItem(SESSION_KEY);
-      window.sessionStorage.removeItem(SESSION_KEY);
-    } catch {
-      // Ignore storage failures gracefully
-    }
-  },
-
-  getCurrentSession(): AuthSession | null {
-    try {
-      const raw =
-        window.sessionStorage.getItem(SESSION_KEY) ?? window.localStorage.getItem(SESSION_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as AuthSession;
-      if (!parsed?.sessionId || !parsed?.user?.email) return null;
-      return parsed;
-    } catch {
-      return null;
-    }
-  },
-
-  async requestPasswordReset(email: string): Promise<{ sent: boolean }> {
-    await delay(250);
-    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      throw new Error('INVALID_EMAIL');
-    }
-    return { sent: true };
-  },
-};
 
 export function getRememberedAdminEmail(): string {
   try {
@@ -108,3 +33,205 @@ export function getRememberedAdminEmail(): string {
     return '';
   }
 }
+
+async function fetchActiveAdminProfile(userId: string): Promise<AdminUser | null> {
+  const existing = inFlightProfileRequests.get(userId);
+  if (existing) return existing;
+
+  const promise = (async (): Promise<AdminUser | null> => {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, role, is_active')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error || !data || !data.is_active || !['admin', 'super_admin'].includes(data.role)) {
+      return null;
+    }
+
+    return mapProfileToAdminUser(data);
+  })().finally(() => {
+    inFlightProfileRequests.delete(userId);
+  });
+
+  inFlightProfileRequests.set(userId, promise);
+  return promise;
+}
+
+export const authService: IAuthService = {
+  async login(email: string, password: string, rememberMe: boolean): Promise<AuthSession> {
+    const supabase = getSupabaseClient();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
+
+    if (error || !data.session || !data.user) {
+      throw new AppServiceError(
+        'INVALID_CREDENTIALS',
+        error?.message || 'Invalid credentials',
+        401,
+      );
+    }
+
+    const adminProfile = await fetchActiveAdminProfile(data.user.id);
+    if (!adminProfile) {
+      await supabase.auth.signOut();
+      currentSessionCache = null;
+      throw new AppServiceError(
+        'NOT_AUTHORIZED_ADMIN',
+        'Account is not an active administrator.',
+        403,
+      );
+    }
+
+    try {
+      if (rememberMe) {
+        window.localStorage.setItem(REMEMBER_EMAIL_KEY, normalizedEmail);
+      } else {
+        window.localStorage.removeItem(REMEMBER_EMAIL_KEY);
+      }
+    } catch {
+      // Ignore storage access errors in private contexts
+    }
+
+    const authSession: AuthSession = {
+      sessionId: data.session.access_token.slice(-16),
+      user: adminProfile,
+      authenticatedAt: new Date().toISOString(),
+      rememberMe,
+    };
+
+    currentSessionCache = authSession;
+    return authSession;
+  },
+
+  async logout(): Promise<void> {
+    currentSessionCache = null;
+    const supabase = getSupabaseClient();
+    await supabase.auth.signOut();
+  },
+
+  getCurrentSession(): AuthSession | null {
+    return currentSessionCache;
+  },
+
+  async restoreSession(): Promise<AuthSession | null> {
+    try {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error || !data.session?.user) {
+        currentSessionCache = null;
+        return null;
+      }
+
+      const adminProfile = await fetchActiveAdminProfile(data.session.user.id);
+      if (!adminProfile) {
+        await supabase.auth.signOut();
+        currentSessionCache = null;
+        return null;
+      }
+
+      const authSession: AuthSession = {
+        sessionId: data.session.access_token.slice(-16),
+        user: adminProfile,
+        authenticatedAt: new Date(data.session.user.last_sign_in_at ?? Date.now()).toISOString(),
+        rememberMe: Boolean(getRememberedAdminEmail()),
+      };
+      currentSessionCache = authSession;
+      return authSession;
+    } catch {
+      currentSessionCache = null;
+      return null;
+    }
+  },
+
+  onAuthStateChange(callback: (change: AuthStateChangeEvent) => void): () => void {
+    const supabase = getSupabaseClient();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session?.user) {
+        currentSessionCache = null;
+        callback({ event: 'SIGNED_OUT', session: null });
+        return;
+      }
+
+      if (event === 'PASSWORD_RECOVERY') {
+        void fetchActiveAdminProfile(session.user.id).then((adminProfile) => {
+          const mappedSession: AuthSession | null = adminProfile
+            ? {
+                sessionId: session.access_token.slice(-16),
+                user: adminProfile,
+                authenticatedAt: new Date().toISOString(),
+                rememberMe: Boolean(getRememberedAdminEmail()),
+              }
+            : null;
+          currentSessionCache = mappedSession;
+          callback({ event: 'PASSWORD_RECOVERY', session: mappedSession });
+        });
+        return;
+      }
+
+      if (
+        event === 'SIGNED_IN' ||
+        event === 'TOKEN_REFRESHED' ||
+        event === 'USER_UPDATED' ||
+        event === 'INITIAL_SESSION'
+      ) {
+        void fetchActiveAdminProfile(session.user.id).then(async (adminProfile) => {
+          if (!adminProfile) {
+            await supabase.auth.signOut();
+            currentSessionCache = null;
+            callback({ event: 'SIGNED_OUT', session: null });
+            return;
+          }
+          const mappedSession: AuthSession = {
+            sessionId: session.access_token.slice(-16),
+            user: adminProfile,
+            authenticatedAt: new Date(session.user.last_sign_in_at ?? Date.now()).toISOString(),
+            rememberMe: Boolean(getRememberedAdminEmail()),
+          };
+          currentSessionCache = mappedSession;
+          callback({
+            event: event === 'INITIAL_SESSION' ? 'SIGNED_IN' : event,
+            session: mappedSession,
+          });
+        });
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  },
+
+  async requestPasswordReset(email: string): Promise<{ sent: boolean }> {
+    const supabase = getSupabaseClient();
+    const normalizedEmail = email.trim().toLowerCase();
+    const redirectTo =
+      typeof window !== 'undefined' ? `${window.location.origin}/admin/login` : undefined;
+
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo,
+    });
+
+    if (error) {
+      throw new AppServiceError('UNKNOWN_ERROR', error.message);
+    }
+
+    return { sent: true };
+  },
+
+  async updatePassword(newPassword: string): Promise<void> {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      throw new AppServiceError('VALIDATION_ERROR', error.message);
+    }
+  },
+};

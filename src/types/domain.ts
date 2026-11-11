@@ -40,6 +40,7 @@ export interface CreateRegistrationInput {
   university?: string;
   email?: string;
   phone?: string;
+  website?: string;
 }
 
 export interface UpdateRegistrationInput {

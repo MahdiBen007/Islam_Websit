@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { buildRegistrationsCsv } from '@/services/exports/exportService';
-import { INITIAL_REGISTRATIONS } from '@/services/storage/mockSeedData';
+import { TEST_REGISTRATIONS } from '@/test/fixtures';
 
 describe('exportService CSV generation', () => {
   it('generates UTF-8 BOM CSV with Arabic headers and escapes formula injection', () => {
     const sample = [
       {
-        ...INITIAL_REGISTRATIONS[0],
+        ...TEST_REGISTRATIONS[0],
         firstName: '=cmd()',
       },
     ];
@@ -18,7 +18,7 @@ describe('exportService CSV generation', () => {
   });
 
   it('generates English headers when language is en', () => {
-    const csv = buildRegistrationsCsv([INITIAL_REGISTRATIONS[0]], 'en');
+    const csv = buildRegistrationsCsv([TEST_REGISTRATIONS[0]], 'en');
     expect(csv).toContain('Reference ID');
     expect(csv).toContain('Computer Science & Artificial Intelligence');
   });

@@ -1,5 +1,3 @@
-import type { IRegistrationService } from '@/services/api/types';
-import { mockRepository } from '@/services/storage/mockRepository';
 import type {
   CreateRegistrationInput,
   RegistrationStats,
@@ -7,148 +5,419 @@ import type {
   StudentRegistration,
   UpdateRegistrationInput,
 } from '@/types/domain';
+import {
+  getSupabaseClient,
+  getSupabaseFunctionsUrl,
+  getSupabasePublicHeaders,
+} from '@/lib/supabaseClient';
+import { appDataEvents } from '@/services/api/dataSync';
+import { AppServiceError, type AppErrorCode } from '@/services/api/errors';
+import type {
+  IRegistrationService,
+  PaginatedRegistrationsQuery,
+  PaginatedRegistrationsResult,
+} from '@/services/api/types';
 import { normalizeInstagramHandle } from '@/utils/formatters';
 
-function delay(ms: number): Promise<void> {
-  if (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') {
-    return Promise.resolve();
+const RECEIPT_CACHE_PREFIX = 'cic_reg_receipt_v1:';
+
+function toDomainStatus(dbStatus: string): RegistrationStatus {
+  if (dbStatus === 'under_review') return 'pending';
+  if (dbStatus === 'accepted') return 'approved';
+  if (dbStatus === 'rejected') return 'rejected';
+  return 'new';
+}
+
+function toDbStatus(status: RegistrationStatus): 'new' | 'under_review' | 'accepted' | 'rejected' {
+  if (status === 'pending') return 'under_review';
+  if (status === 'approved') return 'accepted';
+  return status;
+}
+
+interface RpcRegistrationRecord {
+  id: string;
+  referenceId: string;
+  studentId?: string;
+  firstName: string;
+  lastName: string;
+  phone?: string | null;
+  instagramHandle: string;
+  university?: string | null;
+  email?: string | null;
+  specializationId: string;
+  specializationNameAr: string;
+  specializationNameEn: string;
+  status: string;
+  confirmedAttendance?: boolean;
+  rejectionReason?: string | null;
+  adminNotes?: string | null;
+  submittedAt?: string;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function mapRpcItem(raw: RpcRegistrationRecord): StudentRegistration {
+  return {
+    id: raw.id,
+    referenceId: raw.referenceId,
+    firstName: raw.firstName,
+    lastName: raw.lastName,
+    phone: raw.phone ?? undefined,
+    instagramHandle: raw.instagramHandle,
+    university: raw.university ?? undefined,
+    email: raw.email ?? undefined,
+    specializationId: raw.specializationId,
+    specializationNameAr: raw.specializationNameAr,
+    specializationNameEn: raw.specializationNameEn,
+    status: toDomainStatus(raw.status),
+    confirmedAttendance: raw.confirmedAttendance ?? true,
+    adminNotes: raw.adminNotes ?? undefined,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+  };
+}
+
+function saveReceiptInSession(registration: StudentRegistration): void {
+  try {
+    window.sessionStorage.setItem(
+      `${RECEIPT_CACHE_PREFIX}${registration.referenceId.toUpperCase()}`,
+      JSON.stringify(registration),
+    );
+  } catch {
+    // Ignore storage access errors
   }
-  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function readReceiptFromSession(referenceId: string): StudentRegistration | undefined {
+  try {
+    const raw = window.sessionStorage.getItem(
+      `${RECEIPT_CACHE_PREFIX}${referenceId.trim().toUpperCase()}`,
+    );
+    if (!raw) return undefined;
+    return JSON.parse(raw) as StudentRegistration;
+  } catch {
+    return undefined;
+  }
+}
+
+function mapEdgeErrorCode(code?: string): AppErrorCode {
+  switch (code) {
+    case 'DUPLICATE_REGISTRATION':
+      return 'DUPLICATE_REGISTRATION';
+    case 'REGISTRATION_CLOSED':
+      return 'REGISTRATION_CLOSED';
+    case 'CAPACITY_REACHED':
+      return 'CAPACITY_REACHED';
+    case 'RATE_LIMITED':
+      return 'RATE_LIMITED';
+    case 'BOT_DETECTED':
+      return 'BOT_DETECTED';
+    case 'SPECIALIZATION_UNAVAILABLE':
+      return 'SPECIALIZATION_UNAVAILABLE';
+    default:
+      return 'UNKNOWN_ERROR';
+  }
 }
 
 export const registrationService: IRegistrationService = {
+  async listPaginated(query: PaginatedRegistrationsQuery = {}): Promise<PaginatedRegistrationsResult> {
+    const supabase = getSupabaseClient();
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 10;
+
+    const { data, error } = await supabase.rpc('admin_list_registrations', {
+      p_page: page,
+      p_page_size: pageSize,
+      p_search: query.search?.trim() ?? '',
+      p_specialization_id: query.specializationId ? query.specializationId : undefined,
+      p_status: query.status ? toDbStatus(query.status) : '',
+      p_date_filter: query.dateFilter ?? 'all',
+    });
+
+    if (error || !data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new AppServiceError(
+        'UNKNOWN_ERROR',
+        error?.message ?? 'Failed to load registrations',
+      );
+    }
+
+    const payload = data as {
+      items?: RpcRegistrationRecord[];
+      totalCount?: number;
+      page?: number;
+      pageSize?: number;
+    };
+
+    return {
+      items: (payload.items ?? []).map(mapRpcItem),
+      totalCount: Number(payload.totalCount ?? 0),
+      page: Number(payload.page ?? page),
+      pageSize: Number(payload.pageSize ?? pageSize),
+    };
+  },
+
   async list(): Promise<StudentRegistration[]> {
-    const items = mockRepository.getRegistrations();
-    return [...items].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
+    const result = await this.listPaginated({ page: 1, pageSize: 200 });
+    return result.items;
   },
 
   async getById(id: string): Promise<StudentRegistration | undefined> {
-    return mockRepository.getRegistrations().find((r) => r.id === id);
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('registrations')
+      .select(`
+        id,
+        registration_number,
+        specialization_id,
+        specialization_name_ar,
+        specialization_name_en,
+        status,
+        confirmed_attendance,
+        created_at,
+        updated_at,
+        students (
+          first_name,
+          last_name,
+          phone,
+          instagram_username,
+          university,
+          email
+        ),
+        admin_notes (
+          note,
+          updated_at
+        )
+      `)
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error || !data) return undefined;
+
+    const student = Array.isArray(data.students) ? data.students[0] : data.students;
+    const notes = Array.isArray(data.admin_notes)
+      ? [...data.admin_notes].sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]?.note
+      : undefined;
+
+    if (!student) return undefined;
+
+    return {
+      id: data.id,
+      referenceId: data.registration_number,
+      firstName: student.first_name,
+      lastName: student.last_name,
+      phone: student.phone ?? undefined,
+      instagramHandle: student.instagram_username,
+      university: student.university ?? undefined,
+      email: student.email ?? undefined,
+      specializationId: data.specialization_id,
+      specializationNameAr: data.specialization_name_ar,
+      specializationNameEn: data.specialization_name_en,
+      status: toDomainStatus(data.status),
+      confirmedAttendance: data.confirmed_attendance,
+      adminNotes: notes ?? undefined,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    };
   },
 
   async getByReferenceId(referenceId: string): Promise<StudentRegistration | undefined> {
-    return mockRepository
-      .getRegistrations()
-      .find((r) => r.referenceId.toLowerCase() === referenceId.toLowerCase());
+    const cached = readReceiptFromSession(referenceId);
+    if (cached) return cached;
+
+    const supabase = getSupabaseClient();
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) {
+      return undefined;
+    }
+
+    const { data, error } = await supabase
+      .from('registrations')
+      .select(`
+        id,
+        registration_number,
+        specialization_id,
+        specialization_name_ar,
+        specialization_name_en,
+        status,
+        confirmed_attendance,
+        created_at,
+        updated_at,
+        students (
+          first_name,
+          last_name,
+          phone,
+          instagram_username,
+          university,
+          email
+        )
+      `)
+      .ilike('registration_number', referenceId.trim())
+      .maybeSingle();
+
+    if (error || !data) return undefined;
+
+    const student = Array.isArray(data.students) ? data.students[0] : data.students;
+    if (!student) return undefined;
+
+    return {
+      id: data.id,
+      referenceId: data.registration_number,
+      firstName: student.first_name,
+      lastName: student.last_name,
+      phone: student.phone ?? undefined,
+      instagramHandle: student.instagram_username,
+      university: student.university ?? undefined,
+      email: student.email ?? undefined,
+      specializationId: data.specialization_id,
+      specializationNameAr: data.specialization_name_ar,
+      specializationNameEn: data.specialization_name_en,
+      status: toDomainStatus(data.status),
+      confirmedAttendance: data.confirmed_attendance,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    };
   },
 
   async getStats(): Promise<RegistrationStats> {
-    const registrations = mockRepository.getRegistrations();
-    const eventSettings = mockRepository.getEventSettings();
-    const total = registrations.length;
-    const newCount = registrations.filter((r) => r.status === 'new').length;
-    const pending = registrations.filter((r) => r.status === 'pending' || r.status === 'new').length;
-    const approved = registrations.filter((r) => r.status === 'approved').length;
-    const rejected = registrations.filter((r) => r.status === 'rejected').length;
-    const capacity = eventSettings.capacity;
-    const remainingSeats = Math.max(0, capacity - total);
+    const supabase = getSupabaseClient();
+    const [{ data, error }, { data: eventRow }] = await Promise.all([
+      supabase.rpc('get_registration_stats'),
+      supabase.from('event_settings').select('capacity').eq('singleton_key', true).maybeSingle(),
+    ]);
+
+    const capacity = Number(eventRow?.capacity ?? 150);
+
+    if (error || !data || typeof data !== 'object' || Array.isArray(data)) {
+      return {
+        total: 0,
+        newCount: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+        capacity,
+        remainingSeats: capacity,
+      };
+    }
+
+    const raw = data as {
+      total?: number;
+      newCount?: number;
+      underReviewCount?: number;
+      acceptedCount?: number;
+      rejectedCount?: number;
+    };
+
+    const newCount = Number(raw.newCount ?? 0);
+    const underReviewCount = Number(raw.underReviewCount ?? 0);
+    const approved = Number(raw.acceptedCount ?? 0);
 
     return {
-      total,
+      total: Number(raw.total ?? 0),
       newCount,
-      pending,
+      pending: newCount + underReviewCount,
       approved,
-      rejected,
+      rejected: Number(raw.rejectedCount ?? 0),
       capacity,
-      remainingSeats,
+      remainingSeats: Math.max(0, capacity - approved),
     };
   },
 
   async create(input: CreateRegistrationInput): Promise<StudentRegistration> {
-    await delay(250);
+    const response = await fetch(getSupabaseFunctionsUrl('submit-registration'), {
+      method: 'POST',
+      headers: getSupabasePublicHeaders(),
+      body: JSON.stringify({
+        firstName: input.firstName.trim(),
+        lastName: input.lastName.trim(),
+        phone: (input.phone ?? '').trim(),
+        specializationId: input.specializationId,
+        instagramHandle: normalizeInstagramHandle(input.instagramHandle),
+        confirmedAttendance: input.confirmedAttendance,
+        website: input.website ?? '',
+      }),
+    });
 
-    const specializations = mockRepository.getSpecializations();
-    const spec = specializations.find((s) => s.id === input.specializationId);
-    if (!spec || !spec.isActive) {
-      throw new Error('Selected specialization is unavailable or inactive.');
+    const json = (await response.json().catch(() => null)) as
+      | { registration?: RpcRegistrationRecord; error?: { code?: string; message?: string } }
+      | null;
+
+    if (!response.ok || !json?.registration) {
+      throw new AppServiceError(
+        mapEdgeErrorCode(json?.error?.code),
+        json?.error?.message ?? 'Unable to submit registration.',
+        response.status,
+      );
     }
 
-    const now = new Date().toISOString();
-    const referenceId = mockRepository.getNextReferenceId();
-    const normalizedHandle = normalizeInstagramHandle(input.instagramHandle);
+    const mapped = mapRpcItem(json.registration);
+    saveReceiptInSession(mapped);
+    return mapped;
+  },
 
-    const newRecord: StudentRegistration = {
-      id: `reg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      referenceId,
-      firstName: input.firstName.trim(),
-      lastName: input.lastName.trim(),
-      specializationId: spec.id,
-      specializationNameAr: spec.nameAr,
-      specializationNameEn: spec.nameEn,
-      instagramHandle: normalizedHandle,
-      university: input.university?.trim() || undefined,
-      email: input.email?.trim() || undefined,
-      phone: input.phone?.trim() || undefined,
-      status: 'pending',
-      confirmedAttendance: input.confirmedAttendance,
-      createdAt: now,
-      updatedAt: now,
-    };
+  async createByAdmin(
+    input: CreateRegistrationInput & {
+      status?: RegistrationStatus;
+      university?: string;
+      email?: string;
+    },
+  ): Promise<StudentRegistration> {
+    const supabase = getSupabaseClient();
+    const { data: regId, error } = await supabase.rpc('admin_create_registration', {
+      p_first_name: input.firstName.trim(),
+      p_last_name: input.lastName.trim(),
+      p_phone: (input.phone ?? '').trim(),
+      p_specialization_id: input.specializationId,
+      p_instagram_username: normalizeInstagramHandle(input.instagramHandle),
+      p_university: input.university?.trim() || undefined,
+      p_email: input.email?.trim() || undefined,
+      p_status: toDbStatus(input.status ?? 'pending'),
+    });
 
-    const existing = mockRepository.getRegistrations();
-    mockRepository.saveRegistrations([newRecord, ...existing]);
+    if (error || !regId) {
+      if (error?.message?.includes('registrations_active_student_uidx') || error?.code === '23505') {
+        throw new AppServiceError('DUPLICATE_REGISTRATION', error.message, 409);
+      }
+      throw new AppServiceError('UNKNOWN_ERROR', error?.message ?? 'Failed to add student');
+    }
 
-    // Also add an admin notification
-    const notifications = mockRepository.getNotifications();
-    mockRepository.saveNotifications([
-      {
-        id: `notif-${Date.now()}`,
-        titleAr: 'طلب تسجيل جديد',
-        titleEn: 'New Student Registration',
-        messageAr: `قام ${newRecord.firstName} ${newRecord.lastName} (${newRecord.instagramHandle}) بالتسجيل برقم ${newRecord.referenceId}.`,
-        messageEn: `${newRecord.firstName} ${newRecord.lastName} (${newRecord.instagramHandle}) registered with ID ${newRecord.referenceId}.`,
-        isRead: false,
-        createdAt: now,
-        registrationId: newRecord.id,
-      },
-      ...notifications,
-    ]);
-
-    return newRecord;
+    const created = await this.getById(regId);
+    appDataEvents.notify();
+    if (!created) {
+      throw new AppServiceError('UNKNOWN_ERROR', 'Created registration could not be loaded.');
+    }
+    return created;
   },
 
   async update(id: string, input: UpdateRegistrationInput): Promise<StudentRegistration> {
-    await delay(120);
-    const items = mockRepository.getRegistrations();
-    const index = items.findIndex((r) => r.id === id);
-    if (index === -1) {
-      throw new Error('Registration not found.');
-    }
-
-    const current = items[index];
-    let specAr = current.specializationNameAr;
-    let specEn = current.specializationNameEn;
-    let specId = current.specializationId;
-
-    if (input.specializationId && input.specializationId !== current.specializationId) {
-      const spec = mockRepository.getSpecializations().find((s) => s.id === input.specializationId);
-      if (spec) {
-        specId = spec.id;
-        specAr = spec.nameAr;
-        specEn = spec.nameEn;
-      }
-    }
-
-    const updated: StudentRegistration = {
-      ...current,
-      ...input,
-      firstName: input.firstName !== undefined ? input.firstName.trim() : current.firstName,
-      lastName: input.lastName !== undefined ? input.lastName.trim() : current.lastName,
-      instagramHandle:
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.rpc('admin_update_registration', {
+      p_registration_id: id,
+      p_first_name: input.firstName !== undefined ? input.firstName.trim() : undefined,
+      p_last_name: input.lastName !== undefined ? input.lastName.trim() : undefined,
+      p_phone: input.phone !== undefined ? input.phone.trim() : undefined,
+      p_instagram_username:
         input.instagramHandle !== undefined
           ? normalizeInstagramHandle(input.instagramHandle)
-          : current.instagramHandle,
-      specializationId: specId,
-      specializationNameAr: specAr,
-      specializationNameEn: specEn,
-      updatedAt: new Date().toISOString(),
-    };
+          : undefined,
+      p_university: input.university !== undefined ? input.university : undefined,
+      p_email: input.email !== undefined ? input.email : undefined,
+      p_specialization_id:
+        input.specializationId !== undefined ? input.specializationId : undefined,
+      p_status: input.status !== undefined ? toDbStatus(input.status) : undefined,
+      p_admin_note: input.adminNotes !== undefined ? input.adminNotes : undefined,
+    });
 
-    const next = [...items];
-    next[index] = updated;
-    mockRepository.saveRegistrations(next);
+    if (error) {
+      throw new AppServiceError('UNKNOWN_ERROR', error.message);
+    }
+
+    const updated = await this.getById(id);
+    appDataEvents.notify();
+    if (!updated) {
+      throw new AppServiceError('UNKNOWN_ERROR', 'Updated registration could not be reloaded.');
+    }
     return updated;
   },
 
@@ -157,25 +426,37 @@ export const registrationService: IRegistrationService = {
   },
 
   async bulkUpdateStatus(ids: string[], status: RegistrationStatus): Promise<void> {
-    await delay(120);
-    const idSet = new Set(ids);
-    const now = new Date().toISOString();
-    const next = mockRepository.getRegistrations().map((item) =>
-      idSet.has(item.id) ? { ...item, status, updatedAt: now } : item,
-    );
-    mockRepository.saveRegistrations(next);
+    if (ids.length === 0) return;
+    const supabase = getSupabaseClient();
+    const { error } = await supabase
+      .from('registrations')
+      .update({ status: toDbStatus(status) })
+      .in('id', ids);
+
+    if (error) {
+      throw new AppServiceError('UNKNOWN_ERROR', error.message);
+    }
+    appDataEvents.notify();
   },
 
   async remove(id: string): Promise<void> {
-    await delay(100);
-    const next = mockRepository.getRegistrations().filter((item) => item.id !== id);
-    mockRepository.saveRegistrations(next);
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('registrations').delete().eq('id', id);
+
+    if (error) {
+      throw new AppServiceError('UNKNOWN_ERROR', error.message);
+    }
+    appDataEvents.notify();
   },
 
   async bulkRemove(ids: string[]): Promise<void> {
-    await delay(120);
-    const idSet = new Set(ids);
-    const next = mockRepository.getRegistrations().filter((item) => !idSet.has(item.id));
-    mockRepository.saveRegistrations(next);
+    if (ids.length === 0) return;
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('registrations').delete().in('id', ids);
+
+    if (error) {
+      throw new AppServiceError('UNKNOWN_ERROR', error.message);
+    }
+    appDataEvents.notify();
   },
 };

@@ -7,6 +7,7 @@ import { Modal } from '@/components/common/Modal';
 import { useAppData } from '@/app/providers/AppDataProvider';
 import { useToast } from '@/app/providers/ToastProvider';
 import { useLanguage } from '@/hooks/useLanguage';
+import { isAppServiceError } from '@/services/api/errors';
 import { registrationService } from '@/services/registrations/registrationService';
 import type { StudentRegistration } from '@/types/domain';
 import { isValidInstagramHandle } from '@/utils/formatters';
@@ -64,6 +65,8 @@ export function StudentFormModal({
     },
   });
 
+  const editId = editingRegistration?.id ?? null;
+
   useEffect(() => {
     if (!isOpen) return;
     if (editingRegistration) {
@@ -89,29 +92,37 @@ export function StudentFormModal({
         status: 'pending',
       });
     }
-  }, [isOpen, editingRegistration, reset, specializations]);
+    // Only initialize form fields when opening the modal or switching target student
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, editId, reset]);
 
   const onSubmit = async (values: StudentFormValues) => {
-    if (editingRegistration) {
-      await registrationService.update(editingRegistration.id, values);
-      showToast(t('admin.registrations.toasts.savedEdit'), 'success');
-    } else {
-      const created = await registrationService.create({
-        firstName: values.firstName,
-        lastName: values.lastName,
-        specializationId: values.specializationId,
-        instagramHandle: values.instagramHandle,
-        confirmedAttendance: true,
-        university: values.university,
-        email: values.email,
-        phone: values.phone,
-      });
-      if (values.status !== 'pending') {
-        await registrationService.updateStatus(created.id, values.status);
+    try {
+      if (editingRegistration) {
+        await registrationService.update(editingRegistration.id, values);
+        showToast(t('admin.registrations.toasts.savedEdit'), 'success');
+      } else {
+        await registrationService.createByAdmin({
+          firstName: values.firstName,
+          lastName: values.lastName,
+          specializationId: values.specializationId,
+          instagramHandle: values.instagramHandle,
+          confirmedAttendance: true,
+          university: values.university,
+          email: values.email,
+          phone: values.phone,
+          status: values.status,
+        });
+        showToast(t('admin.registrations.toasts.addedStudent'), 'success');
       }
-      showToast(t('admin.registrations.toasts.addedStudent'), 'success');
+      onClose();
+    } catch (error) {
+      const message =
+        isAppServiceError(error) && error.code === 'DUPLICATE_REGISTRATION'
+          ? t('registration.duplicateError')
+          : t('registration.submitError');
+      showToast(message, 'error');
     }
-    onClose();
   };
 
   return (

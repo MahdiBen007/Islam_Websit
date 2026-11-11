@@ -20,16 +20,26 @@ import { ClubLogo } from '@/components/common/ClubLogo';
 import { useAppData } from '@/app/providers/AppDataProvider';
 import { useToast } from '@/app/providers/ToastProvider';
 import { useLanguage } from '@/hooks/useLanguage';
+import { isAppServiceError } from '@/services/api/errors';
 import { registrationService } from '@/services/registrations/registrationService';
 import {
   isValidInstagramHandle,
+  isValidPersonName,
   isValidPhoneNumber,
   stripAtPrefix,
 } from '@/utils/formatters';
 
 const registrationSchema = z.object({
-  firstName: z.string().trim().min(2, 'registration.validation.firstNameRequired'),
-  lastName: z.string().trim().min(2, 'registration.validation.lastNameRequired'),
+  firstName: z
+    .string()
+    .trim()
+    .min(2, 'registration.validation.firstNameRequired')
+    .refine((val) => isValidPersonName(val), 'registration.validation.nameInvalid'),
+  lastName: z
+    .string()
+    .trim()
+    .min(2, 'registration.validation.lastNameRequired')
+    .refine((val) => isValidPersonName(val), 'registration.validation.nameInvalid'),
   phone: z
     .string()
     .trim()
@@ -44,6 +54,7 @@ const registrationSchema = z.object({
   confirmedAttendance: z
     .boolean()
     .refine((val) => val === true, 'registration.validation.confirmRequired'),
+  website: z.string().optional(),
 });
 
 type RegistrationFormValues = z.infer<typeof registrationSchema>;
@@ -81,6 +92,7 @@ export function RegistrationModal({ isOpen, onClose }: RegistrationModalProps) {
       specializationId: '',
       instagramHandle: '',
       confirmedAttendance: false,
+      website: '',
     },
   });
 
@@ -149,14 +161,26 @@ export function RegistrationModal({ isOpen, onClose }: RegistrationModalProps) {
         specializationId: values.specializationId,
         instagramHandle: values.instagramHandle,
         confirmedAttendance: values.confirmedAttendance,
+        website: values.website,
       });
       reset();
       onClose();
       navigate(`/success/${created.referenceId}`, {
         state: { registration: created },
       });
-    } catch {
-      const errMsg = t('registration.submitError');
+    } catch (error) {
+      let errMsg = t('registration.submitError');
+      if (isAppServiceError(error)) {
+        if (error.code === 'DUPLICATE_REGISTRATION') {
+          errMsg = t('registration.duplicateError');
+        } else if (error.code === 'REGISTRATION_CLOSED') {
+          errMsg = t('registration.closedError');
+        } else if (error.code === 'CAPACITY_REACHED') {
+          errMsg = t('registration.capacityReachedError');
+        } else if (error.code === 'RATE_LIMITED') {
+          errMsg = t('registration.rateLimitError');
+        }
+      }
       setSubmitError(errMsg);
       showToast(errMsg, 'error');
     }
@@ -250,6 +274,18 @@ export function RegistrationModal({ isOpen, onClose }: RegistrationModalProps) {
               className="space-y-3 sm:space-y-4"
               data-testid="student-registration-form"
             >
+              {/* Off-screen anti-bot honeypot field */}
+              <div className="sr-only" aria-hidden="true">
+                <label htmlFor="reg-website-hp">Website</label>
+                <input
+                  id="reg-website-hp"
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  {...register('website')}
+                />
+              </div>
+
               <p className="hidden sm:block text-xs sm:type-body-sm text-on-surface-variant mb-0.5">
                 {t('registration.subtitle')}
               </p>

@@ -34,11 +34,25 @@ export function StudentDetailsDrawer({
 }: StudentDetailsDrawerProps) {
   const { language, t } = useLanguage();
   const { showToast } = useToast();
-  const { registrations } = useAppData();
+  const { registrations, dataVersion } = useAppData();
 
-  // Keep synced with live store updates
+  const [fetchedReg, setFetchedReg] = useState<StudentRegistration | null>(null);
   const liveReg =
-    registrations.find((item) => item.id === registration?.id) ?? registration;
+    registrations.find((item) => item.id === registration?.id) ?? fetchedReg ?? registration;
+
+  useEffect(() => {
+    if (!registration?.id) {
+      setFetchedReg(null);
+      return;
+    }
+    let active = true;
+    void registrationService.getById(registration.id).then((found) => {
+      if (active && found) setFetchedReg(found);
+    });
+    return () => {
+      active = false;
+    };
+  }, [registration?.id, dataVersion]);
 
   const [notes, setNotes] = useState(liveReg?.adminNotes ?? '');
   const [savingNotes, setSavingNotes] = useState(false);
@@ -59,8 +73,12 @@ export function StudentDetailsDrawer({
   if (!liveReg) return null;
 
   const handleStatusChange = async (status: RegistrationStatus) => {
-    await registrationService.updateStatus(liveReg.id, status);
-    showToast(t('admin.registrations.toasts.statusUpdated'), 'success');
+    try {
+      await registrationService.updateStatus(liveReg.id, status);
+      showToast(t('admin.registrations.toasts.statusUpdated'), 'success');
+    } catch {
+      showToast(t('admin.eventSettings.saveErrorToast'), 'error');
+    }
   };
 
   const handleSaveNotes = async () => {
@@ -68,6 +86,8 @@ export function StudentDetailsDrawer({
     try {
       await registrationService.update(liveReg.id, { adminNotes: notes });
       showToast(t('admin.registrations.toasts.notesSaved'), 'success');
+    } catch {
+      showToast(t('admin.eventSettings.saveErrorToast'), 'error');
     } finally {
       setSavingNotes(false);
     }

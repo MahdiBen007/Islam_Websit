@@ -37,17 +37,21 @@ export function PublicFooter() {
             <h4 className="type-headline-sm text-primary font-bold mb-1">
               {t('footer.contactTitle')}
             </h4>
-            <a
-              href={`mailto:${eventSettings.contactEmail}`}
-              className="inline-flex items-center gap-2 text-on-surface-variant hover:text-secondary type-body-sm transition-colors"
-            >
-              <Mail className="w-4 h-4 text-secondary shrink-0" aria-hidden="true" />
-              <span dir="ltr">{eventSettings.contactEmail}</span>
-            </a>
-            <div className="flex items-start gap-2 text-on-surface-variant type-body-sm">
-              <MapPin className="w-4 h-4 text-secondary shrink-0 mt-1" aria-hidden="true" />
-              <span>{contactAddress}</span>
-            </div>
+            {eventSettings.contactEmail && (
+              <a
+                href={`mailto:${eventSettings.contactEmail}`}
+                className="inline-flex items-center gap-2 text-on-surface-variant hover:text-secondary type-body-sm transition-colors"
+              >
+                <Mail className="w-4 h-4 text-secondary shrink-0" aria-hidden="true" />
+                <span dir="ltr">{eventSettings.contactEmail}</span>
+              </a>
+            )}
+            {contactAddress && (
+              <div className="flex items-start gap-2 text-on-surface-variant type-body-sm">
+                <MapPin className="w-4 h-4 text-secondary shrink-0 mt-1" aria-hidden="true" />
+                <span>{contactAddress}</span>
+              </div>
+            )}
           </div>
 
           {/* Column 3: Social */}
@@ -56,24 +60,28 @@ export function PublicFooter() {
               {t('footer.followUsTitle')}
             </h4>
             <div className="flex items-center gap-3">
-              <a
-                href={eventSettings.instagramUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Instagram"
-                className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-secondary hover:bg-secondary hover:text-on-secondary transition-colors"
-              >
-                <Camera className="w-5 h-5" aria-hidden="true" />
-              </a>
-              <a
-                href={eventSettings.facebookUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Website / Facebook"
-                className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-secondary hover:bg-secondary hover:text-on-secondary transition-colors"
-              >
-                <Globe className="w-5 h-5" aria-hidden="true" />
-              </a>
+              {eventSettings.instagramUrl && (
+                <a
+                  href={eventSettings.instagramUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Instagram"
+                  className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-secondary hover:bg-secondary hover:text-on-secondary transition-colors"
+                >
+                  <Camera className="w-5 h-5" aria-hidden="true" />
+                </a>
+              )}
+              {eventSettings.facebookUrl && (
+                <a
+                  href={eventSettings.facebookUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Website / Facebook"
+                  className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-secondary hover:bg-secondary hover:text-on-secondary transition-colors"
+                >
+                  <Globe className="w-5 h-5" aria-hidden="true" />
+                </a>
+              )}
             </div>
           </div>
         </div>

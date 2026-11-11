@@ -27,9 +27,9 @@ import { LanguageSwitcher } from '@/components/common/LanguageSwitcher';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { useToast } from '@/app/providers/ToastProvider';
 import { useLanguage } from '@/hooks/useLanguage';
+import { isAppServiceError } from '@/services/api/errors';
 import {
   authService,
-  DEMO_ADMIN_CREDENTIALS,
   getRememberedAdminEmail,
 } from '@/services/auth/authService';
 
@@ -55,9 +55,21 @@ const forgotSchema = z.object({
 
 type ForgotFormValues = z.infer<typeof forgotSchema>;
 
+const recoveryResetSchema = z
+  .object({
+    newPassword: z.string().min(8, 'auth.passwordMinLength'),
+    confirmPassword: z.string().min(8, 'auth.passwordMinLength'),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: 'auth.passwordMismatch',
+    path: ['confirmPassword'],
+  });
+
+type RecoveryResetFormValues = z.infer<typeof recoveryResetSchema>;
+
 export function AdminLoginPage() {
-  const { isAuthenticated, login } = useAuth();
-  const { t, language } = useLanguage();
+  const { isAuthenticated, isRecoveryMode, clearRecoveryMode, login } = useAuth();
+  const { t } = useLanguage();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -72,17 +84,16 @@ export function AdminLoginPage() {
   const [recoverySent, setRecoverySent] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated && !loginSuccess) {
+    if (isAuthenticated && !loginSuccess && !isRecoveryMode) {
       navigate(fromPath, { replace: true });
     }
-  }, [isAuthenticated, loginSuccess, navigate, fromPath]);
+  }, [isAuthenticated, loginSuccess, isRecoveryMode, navigate, fromPath]);
 
   const rememberedEmail = getRememberedAdminEmail();
 
   const {
     register: registerLogin,
     handleSubmit: handleLoginSubmit,
-    setValue: setLoginValue,
     formState: { errors: loginErrors, isSubmitting: isLoggingIn },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -105,6 +116,18 @@ export function AdminLoginPage() {
     },
   });
 
+  const {
+    register: registerReset,
+    handleSubmit: handleResetSubmit,
+    formState: { errors: resetErrors, isSubmitting: isUpdatingPassword },
+  } = useForm<RecoveryResetFormValues>({
+    resolver: zodResolver(recoveryResetSchema),
+    defaultValues: {
+      newPassword: '',
+      confirmPassword: '',
+    },
+  });
+
   const onLogin = async (values: LoginFormValues) => {
     setAuthError(null);
     try {
@@ -112,22 +135,37 @@ export function AdminLoginPage() {
       setLoginSuccess(true);
       showToast(t('auth.loginSuccessToast'), 'success');
       navigate(fromPath, { replace: true });
-    } catch {
-      setAuthError(t('auth.invalidCredentials'));
+    } catch (error) {
+      if (isAppServiceError(error) && error.code === 'NOT_AUTHORIZED_ADMIN') {
+        setAuthError(t('auth.notAuthorized'));
+      } else {
+        setAuthError(t('auth.invalidCredentials'));
+      }
     }
   };
 
   const onForgotSubmit = async (values: ForgotFormValues) => {
     setRecoverySent(false);
-    await authService.requestPasswordReset(values.recoveryEmail);
-    setRecoverySent(true);
-    resetForgot();
+    setAuthError(null);
+    try {
+      await authService.requestPasswordReset(values.recoveryEmail);
+      setRecoverySent(true);
+      resetForgot();
+    } catch {
+      setAuthError(t('registration.submitError'));
+    }
   };
 
-  const fillDemoCredentials = () => {
-    setLoginValue('email', DEMO_ADMIN_CREDENTIALS.email, { shouldValidate: true });
-    setLoginValue('password', DEMO_ADMIN_CREDENTIALS.password, { shouldValidate: true });
+  const onResetPasswordSubmit = async (values: RecoveryResetFormValues) => {
     setAuthError(null);
+    try {
+      await authService.updatePassword(values.newPassword);
+      clearRecoveryMode();
+      showToast(t('auth.passwordUpdatedToast'), 'success');
+      navigate('/admin/dashboard', { replace: true });
+    } catch {
+      setAuthError(t('auth.invalidCredentials'));
+    }
   };
 
   return (
@@ -250,7 +288,83 @@ export function AdminLoginPage() {
 
         {/* Form Panel (Left in RTL, Right in LTR) */}
         <div className="lg:col-span-7 bg-surface-container-lowest p-5 sm:p-10 lg:p-14 flex flex-col justify-center">
-          {view === 'login' ? (
+          {isRecoveryMode ? (
+            <div className="w-full max-w-lg mx-auto">
+              <div className="w-12 h-12 rounded-xl bg-surface-container-low text-secondary flex items-center justify-center mb-4">
+                <KeyRound className="w-6 h-6" aria-hidden="true" />
+              </div>
+
+              <h2 className="type-headline-lg text-on-surface font-bold">
+                {t('auth.newPasswordTitle')}
+              </h2>
+              <p className="type-body-md text-on-surface-variant mt-1.5 mb-6">
+                {t('auth.newPasswordSubtitle')}
+              </p>
+
+              {authError && (
+                <div
+                  role="alert"
+                  className="mb-5 p-3.5 rounded-xl bg-error-container text-on-error-container flex items-center gap-3"
+                >
+                  <AlertCircle className="w-5 h-5 text-error shrink-0" aria-hidden="true" />
+                  <span className="type-body-sm font-medium">{authError}</span>
+                </div>
+              )}
+
+              <form
+                noValidate
+                onSubmit={handleResetSubmit(onResetPasswordSubmit)}
+                className="flex flex-col gap-5"
+                data-testid="recovery-reset-form"
+              >
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="newPassword" className="type-label-lg font-medium text-on-surface">
+                    {t('auth.newPasswordLabel')} *
+                  </label>
+                  <input
+                    id="newPassword"
+                    type="password"
+                    dir="ltr"
+                    autoComplete="new-password"
+                    {...registerReset('newPassword')}
+                    className="w-full h-12 px-4 rounded-xl bg-surface-container-low text-on-surface text-left type-body-md border border-outline-variant/40 focus:outline-none focus:bg-surface-container-lowest focus:border-brand-blue focus:ring-3 focus:ring-brand-blue/15"
+                  />
+                  {resetErrors.newPassword?.message && (
+                    <span role="alert" className="type-label-sm text-error">
+                      {t(resetErrors.newPassword.message)}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="confirmPassword" className="type-label-lg font-medium text-on-surface">
+                    {t('auth.confirmPasswordLabel')} *
+                  </label>
+                  <input
+                    id="confirmPassword"
+                    type="password"
+                    dir="ltr"
+                    autoComplete="new-password"
+                    {...registerReset('confirmPassword')}
+                    className="w-full h-12 px-4 rounded-xl bg-surface-container-low text-on-surface text-left type-body-md border border-outline-variant/40 focus:outline-none focus:bg-surface-container-lowest focus:border-brand-blue focus:ring-3 focus:ring-brand-blue/15"
+                  />
+                  {resetErrors.confirmPassword?.message && (
+                    <span role="alert" className="type-label-sm text-error">
+                      {t(resetErrors.confirmPassword.message)}
+                    </span>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isUpdatingPassword}
+                  className="w-full h-12 rounded-xl bg-primary hover:bg-secondary text-on-primary type-label-lg font-bold flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer disabled:opacity-65"
+                >
+                  {isUpdatingPassword ? t('auth.updatingPassword') : t('auth.updatePasswordButton')}
+                </button>
+              </form>
+            </div>
+          ) : view === 'login' ? (
             <div className="w-full max-w-lg mx-auto">
               <div className="flex flex-wrap items-center gap-2 mb-2 sm:mb-3">
                 <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-surface-container-low text-secondary text-xs sm:type-label-md font-bold tracking-wide">
@@ -427,23 +541,6 @@ export function AdminLoginPage() {
                     </>
                   )}
                 </button>
-
-                {/* Demo Credentials Hint */}
-                <div className="bg-surface-container-low/80 p-3 rounded-xl flex flex-wrap items-center justify-between gap-2 text-on-surface-variant type-label-sm border border-outline-variant/25">
-                  <span className="flex items-center gap-1.5">
-                    <KeyRound className="w-4 h-4 text-tertiary" aria-hidden="true" />
-                    <span>{t('auth.demoCredentialsLabel')}</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={fillDemoCredentials}
-                    dir="ltr"
-                    title={language === 'ar' ? 'انقر لملء بيانات الدخول' : 'Click to fill demo credentials'}
-                    className="font-mono text-secondary font-bold hover:underline cursor-pointer"
-                  >
-                    {DEMO_ADMIN_CREDENTIALS.email} / {DEMO_ADMIN_CREDENTIALS.password}
-                  </button>
-                </div>
 
                 {/* Security Assurance Note */}
                 <div className="hidden sm:flex mt-1 items-start gap-2 text-outline">

@@ -11,7 +11,7 @@ const now = Date.now();
 const hoursAgo = (h: number) => new Date(now - h * 60 * 60 * 1000).toISOString();
 const daysAgo = (d: number) => new Date(now - d * 24 * 60 * 60 * 1000).toISOString();
 
-export const INITIAL_SPECIALIZATIONS: Specialization[] = [
+export const TEST_SPECIALIZATIONS: Specialization[] = [
   {
     id: 'spec-se',
     nameAr: 'هندسة البرمجيات وتكنولوجيا المعلومات',
@@ -86,7 +86,7 @@ export const INITIAL_SPECIALIZATIONS: Specialization[] = [
   },
 ];
 
-export const INITIAL_REGISTRATIONS: StudentRegistration[] = [
+export const TEST_REGISTRATIONS: StudentRegistration[] = [
   {
     id: 'reg-1250',
     referenceId: 'REG-001250',
@@ -284,7 +284,7 @@ export const INITIAL_REGISTRATIONS: StudentRegistration[] = [
   },
 ];
 
-export const INITIAL_EVENT_SETTINGS: EventSettings = {
+export const TEST_EVENT_SETTINGS: EventSettings = {
   clubNameAr: 'نادي الإبداع والابتكار',
   clubNameEn: 'Creativity & Innovation Club',
   clubSubtitleAr: 'جامعة الابتكار والريادة',
@@ -292,9 +292,9 @@ export const INITIAL_EVENT_SETTINGS: EventSettings = {
   eventNameAr: 'ورشة صناعة المحتوى والمونتاج الرقمي (CapCut)',
   eventNameEn: 'Digital Content Creation & Video Editing Workshop (CapCut)',
   descriptionAr:
-    'يدعوكم نادي الإبداع والابتكار للمشاركة في فعاليتنا، واكتشاف عالم الإبداع وصناعة المحتوى الرقمي المتميز بأحدث الأدوات والتقنيات مع نخبة من صناع الأثر.',
+    'يدعوكم نادي الإبداع والابتكار للمشاركة في فعاليتنا، واكتشاف عالم الإبداع وصناعة المحتوى الرقمي المتميز بأحدث الأدوات والتقنيات.',
   descriptionEn:
-    'The Creativity & Innovation Club invites you to join our hands-on event and explore digital content creation and modern video storytelling with leading student creators.',
+    'Join our hands-on workshop to explore digital content creation and modern video storytelling.',
   dateAr: '15 نوفمبر 2025',
   dateEn: 'November 15, 2025',
   timeAr: '10:00 صباحاً - 2:00 ظهراً',
@@ -304,19 +304,19 @@ export const INITIAL_EVENT_SETTINGS: EventSettings = {
   organizerAr: 'نادي الإبداع والابتكار',
   organizerEn: 'Creativity & Innovation Club',
   organizerSummaryAr:
-    'منصة جامعية رائدة تحتضن العقول المفكرة والمبتكرة لتطوير المهارات القيادية والتقنية وتنظيم الفعاليات الإبداعية النوعية.',
+    'منصة جامعية لتطوير المهارات القيادية والتقنية وتنظيم الفعاليات الإبداعية.',
   organizerSummaryEn:
-    'A leading university hub empowering creative minds to develop leadership, media, and technical skills through high-impact campus initiatives.',
-  contactEmail: 'innovation@university.edu',
-  contactAddressAr: 'مركز الابتكار وريادة الأعمال، مبنى الأنشطة الطلابية',
-  contactAddressEn: 'Innovation & Entrepreneurship Center, Student Activities Building',
+    'A university hub empowering creative minds through high-impact campus initiatives.',
+  contactEmail: 'contact@example.com',
+  contactAddressAr: 'مركز الابتكار وريادة الأعمال',
+  contactAddressEn: 'Innovation & Entrepreneurship Center',
   instagramUrl: 'https://instagram.com',
   facebookUrl: 'https://facebook.com',
   capacity: 150,
   logoDataUrl: null,
 };
 
-export const INITIAL_PAGE_SETTINGS: PageCustomizationSettings = {
+export const TEST_PAGE_SETTINGS: PageCustomizationSettings = {
   isRegistrationOpen: true,
   heroBadgeAr: 'ورشة عمل حضورية',
   heroBadgeEn: 'In-Person Workshop',
@@ -331,23 +331,23 @@ export const INITIAL_PAGE_SETTINGS: PageCustomizationSettings = {
   successHeadlineAr: 'تم استلام طلب تسجيلك بنجاح!',
   successHeadlineEn: 'Your Registration Request Has Been Received!',
   successMessageAr:
-    'شكراً لاهتمامك بالانضمام إلينا. لقد وصل طلب تسجيلك إلى نادي الإبداع والابتكار بنجاح.',
+    'شكراً لاهتمامك بالانضمام إلينا. لقد وصل طلب تسجيلك بنجاح.',
   successMessageEn:
-    'Thank you for your interest in joining us. Your registration has been successfully received by the Creativity & Innovation Club.',
+    'Thank you for your interest in joining us. Your registration has been received.',
   showMetricsBar: true,
   showAboutSection: true,
   showCapCutBanner: true,
   showPrivacyNote: true,
 };
 
-export const INITIAL_SYSTEM_SETTINGS: SystemSettings = {
+export const TEST_SYSTEM_SETTINGS: SystemSettings = {
   defaultPublicLanguage: 'ar',
   defaultAdminLanguage: 'ar',
   emailNotificationsEnabled: true,
   autoConfirmSeatLabel: true,
 };
 
-export const INITIAL_NOTIFICATIONS: AdminNotification[] = [
+export const TEST_NOTIFICATIONS: AdminNotification[] = [
   {
     id: 'notif-1',
     titleAr: 'طلب تسجيل جديد',
@@ -357,25 +357,5 @@ export const INITIAL_NOTIFICATIONS: AdminNotification[] = [
     isRead: false,
     createdAt: hoursAgo(1),
     registrationId: 'reg-1250',
-  },
-  {
-    id: 'notif-2',
-    titleAr: 'طلب بانتظار المراجعة',
-    titleEn: 'Pending Review',
-    messageAr: 'طلب أمينة قادري بانتظار مراجعة المشرف الأكاديمي.',
-    messageEn: 'Amina Kadri’s registration is awaiting academic coordinator review.',
-    isRead: false,
-    createdAt: hoursAgo(2),
-    registrationId: 'reg-1249',
-  },
-  {
-    id: 'notif-3',
-    titleAr: 'تم تأكيد المقعد',
-    titleEn: 'Seat Confirmed',
-    messageAr: 'تم اعتماد تسجيل الطالب عبد الرحمن بوزيان بنجاح.',
-    messageEn: 'Abdelrahman Bouziane’s registration has been approved.',
-    isRead: true,
-    createdAt: hoursAgo(4),
-    registrationId: 'reg-1248',
   },
 ];

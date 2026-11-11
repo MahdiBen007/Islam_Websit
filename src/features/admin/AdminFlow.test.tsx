@@ -2,11 +2,11 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { renderAtRoute } from '@/test/testUtils';
-import { DEMO_ADMIN_CREDENTIALS } from '@/services/auth/authService';
+import { TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD } from '@/test/mockBackendServices';
 
 async function signInAsAdmin(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(await screen.findByLabelText(/^البريد الإلكتروني/i), DEMO_ADMIN_CREDENTIALS.email);
-  await user.type(screen.getByLabelText(/^كلمة المرور/i), DEMO_ADMIN_CREDENTIALS.password);
+  await user.type(await screen.findByLabelText(/^البريد الإلكتروني/i), TEST_ADMIN_EMAIL);
+  await user.type(screen.getByLabelText(/^كلمة المرور/i), TEST_ADMIN_PASSWORD);
   await user.click(screen.getByTestId('admin-login-submit'));
   expect(await screen.findByText('مرحباً بك في لوحة التحكم')).toBeInTheDocument();
 }
@@ -38,7 +38,7 @@ describe('Admin Dashboard & Management Workflows', () => {
     expect(await screen.findByText('استعادة كلمة المرور')).toBeInTheDocument();
     await user.type(
       screen.getByLabelText(/البريد الإلكتروني الأكاديمي/i),
-      DEMO_ADMIN_CREDENTIALS.email,
+      TEST_ADMIN_EMAIL,
     );
     await user.click(screen.getByRole('button', { name: /إرسال رابط الاستعادة/i }));
     expect(await screen.findByTestId('forgot-success-alert')).toBeInTheDocument();
@@ -52,7 +52,7 @@ describe('Admin Dashboard & Management Workflows', () => {
 
     // Ensure password is never persisted in localStorage
     const allStorage = Object.values(window.localStorage).join(' ');
-    expect(allStorage).not.toContain(DEMO_ADMIN_CREDENTIALS.password);
+    expect(allStorage).not.toContain(TEST_ADMIN_PASSWORD);
 
     // Verify simplified KPI cards
     expect(screen.getByTestId('kpi-total-count')).toHaveTextContent('12');

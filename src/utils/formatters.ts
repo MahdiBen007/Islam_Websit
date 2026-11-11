@@ -15,11 +15,33 @@ export function isValidInstagramHandle(raw: string): boolean {
   return /^[a-zA-Z0-9._]{1,30}$/.test(clean) && !clean.endsWith('.') && !clean.includes('..');
 }
 
+const TRIVIAL_PHONE_SEQUENCES = [
+  '01234567',
+  '12345678',
+  '23456789',
+  '98765432',
+  '87654321',
+  '76543210',
+];
+
+export function isValidPersonName(raw: string): boolean {
+  const cleaned = raw.trim().replace(/\s+/g, ' ');
+  if (cleaned.length < 2 || cleaned.length > 60) return false;
+  if (!/[\p{L}]/u.test(cleaned)) return false;
+  if (/(https?:\/\/|www\.|[<>@#$%^&*={}[\]\\|])/i.test(cleaned)) return false;
+  if (/(.)\1{4,}/u.test(cleaned)) return false;
+  return true;
+}
+
 export function isValidPhoneNumber(raw: string): boolean {
   const trimmed = raw.trim();
   if (!trimmed || !/^[+\d\s()-]+$/.test(trimmed)) return false;
   const digits = trimmed.replace(/\D/g, '');
-  return digits.length >= 8 && digits.length <= 15;
+  if (digits.length < 8 || digits.length > 15) return false;
+  if (/^(\d)\1+$/.test(digits)) return false;
+  if (new Set(digits).size < 3) return false;
+  if (TRIVIAL_PHONE_SEQUENCES.some((seq) => digits.includes(seq))) return false;
+  return true;
 }
 
 export function getInitials(firstName: string, lastName: string): string {

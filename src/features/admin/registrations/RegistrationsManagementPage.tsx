@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
   Camera,
@@ -27,7 +27,6 @@ import type { RegistrationStatus, StudentRegistration } from '@/types/domain';
 import {
   formatRelativeDate,
   getInitials,
-  isWithinDateFilter,
   stripAtPrefix,
 } from '@/utils/formatters';
 import { RegistrationRowActions } from './RegistrationRowActions';
@@ -35,7 +34,7 @@ import { StudentDetailsDrawer } from './StudentDetailsDrawer';
 import { StudentFormModal } from './StudentFormModal';
 
 export function RegistrationsManagementPage() {
-  const { registrations, specializations, stats, refreshAll } = useAppData();
+  const { registrations, specializations, stats, dataVersion, refreshAll } = useAppData();
   const { language, t } = useLanguage();
   const { showToast } = useToast();
 
@@ -47,6 +46,9 @@ export function RegistrationsManagementPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  const [paginatedRows, setPaginatedRows] = useState<StudentRegistration[]>([]);
+  const [totalFiltered, setTotalFiltered] = useState(0);
 
   const [drawerStudent, setDrawerStudent] = useState<StudentRegistration | null>(null);
   const [formModalOpen, setFormModalOpen] = useState(false);
@@ -60,38 +62,58 @@ export function RegistrationsManagementPage() {
     return map;
   }, [specializations]);
 
-  const filteredRegistrations = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return registrations.filter((reg) => {
-      if (q) {
-        const fullName = `${reg.firstName} ${reg.lastName}`.toLowerCase();
-        const insta = reg.instagramHandle.toLowerCase();
-        const refId = reg.referenceId.toLowerCase();
-        if (!fullName.includes(q) && !insta.includes(q) && !refId.includes(q)) {
-          return false;
-        }
-      }
-      if (specializationFilter && reg.specializationId !== specializationFilter) {
-        return false;
-      }
-      if (statusFilter && reg.status !== statusFilter) {
-        return false;
-      }
-      if (!isWithinDateFilter(reg.createdAt, dateFilter)) {
-        return false;
-      }
-      return true;
-    });
-  }, [registrations, searchQuery, specializationFilter, statusFilter, dateFilter]);
+  const fetchPaginatedRows = useCallback(async () => {
+    try {
+      const result = await registrationService.listPaginated({
+        page,
+        pageSize,
+        search: searchQuery,
+        specializationId: specializationFilter,
+        status: statusFilter,
+        dateFilter,
+      });
+      setPaginatedRows(result.items);
+      setTotalFiltered(result.totalCount);
+    } catch {
+      setPaginatedRows([]);
+      setTotalFiltered(0);
+    }
+  }, [page, pageSize, searchQuery, specializationFilter, statusFilter, dateFilter]);
 
-  const totalFiltered = filteredRegistrations.length;
+  useEffect(() => {
+    let active = true;
+    void registrationService
+      .listPaginated({
+        page,
+        pageSize,
+        search: searchQuery,
+        specializationId: specializationFilter,
+        status: statusFilter,
+        dateFilter,
+      })
+      .then((result) => {
+        if (!active) return;
+        setPaginatedRows(result.items);
+        setTotalFiltered(result.totalCount);
+      })
+      .catch(() => {
+        if (!active) return;
+        setPaginatedRows([]);
+        setTotalFiltered(0);
+      });
+    return () => {
+      active = false;
+    };
+  }, [page, pageSize, searchQuery, specializationFilter, statusFilter, dateFilter, dataVersion]);
+
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
   const currentPage = Math.min(page, totalPages);
 
-  const paginatedRows = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredRegistrations.slice(start, start + pageSize);
-  }, [filteredRegistrations, currentPage, pageSize]);
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   const allVisibleSelected =
     paginatedRows.length > 0 && paginatedRows.every((r) => selectedIds.has(r.id));
@@ -126,54 +148,89 @@ export function RegistrationsManagementPage() {
   };
 
   const handleRefresh = async () => {
-    await refreshAll();
+    await Promise.all([refreshAll(), fetchPaginatedRows()]);
     showToast(t('admin.registrations.toasts.refreshed'), 'info');
   };
 
-  const handleExportAll = () => {
-    exportRegistrationsToCsv(filteredRegistrations, language);
-    showToast(t('admin.registrations.toasts.exported'), 'success');
+  const handleExportAll = async () => {
+    try {
+      const result = await registrationService.listPaginated({
+        page: 1,
+        pageSize: 200,
+        search: searchQuery,
+        specializationId: specializationFilter,
+        status: statusFilter,
+        dateFilter,
+      });
+      exportRegistrationsToCsv(result.items, language);
+      showToast(t('admin.registrations.toasts.exported'), 'success');
+    } catch {
+      showToast(t('admin.eventSettings.saveErrorToast'), 'error');
+    }
   };
 
   const handleExportSelected = () => {
-    const selectedRows = registrations.filter((r) => selectedIds.has(r.id));
+    const rowMap = new Map<string, StudentRegistration>();
+    registrations.forEach((r) => rowMap.set(r.id, r));
+    paginatedRows.forEach((r) => rowMap.set(r.id, r));
+    const selectedRows = Array.from(selectedIds)
+      .map((id) => rowMap.get(id))
+      .filter((r): r is StudentRegistration => Boolean(r));
     exportRegistrationsToCsv(selectedRows, language);
     showToast(t('admin.registrations.toasts.exported'), 'success');
   };
 
   const handleStatusChange = async (id: string, status: RegistrationStatus) => {
-    await registrationService.updateStatus(id, status);
-    showToast(t('admin.registrations.toasts.statusUpdated'), 'success');
+    try {
+      await registrationService.updateStatus(id, status);
+      showToast(t('admin.registrations.toasts.statusUpdated'), 'success');
+    } catch {
+      showToast(t('admin.eventSettings.saveErrorToast'), 'error');
+    }
   };
 
   const handleBulkStatus = async (status: RegistrationStatus) => {
-    const ids = Array.from(selectedIds);
-    await registrationService.bulkUpdateStatus(ids, status);
-    setSelectedIds(new Set());
-    showToast(t('admin.registrations.toasts.bulkUpdated'), 'success');
+    try {
+      const ids = Array.from(selectedIds);
+      await registrationService.bulkUpdateStatus(ids, status);
+      setSelectedIds(new Set());
+      showToast(t('admin.registrations.toasts.bulkUpdated'), 'success');
+    } catch {
+      showToast(t('admin.eventSettings.saveErrorToast'), 'error');
+    }
   };
 
   const handleConfirmSingleDelete = async () => {
     if (!deleteTarget) return;
-    await registrationService.remove(deleteTarget.id);
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      next.delete(deleteTarget.id);
-      return next;
-    });
-    if (drawerStudent?.id === deleteTarget.id) {
-      setDrawerStudent(null);
+    try {
+      await registrationService.remove(deleteTarget.id);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(deleteTarget.id);
+        return next;
+      });
+      if (drawerStudent?.id === deleteTarget.id) {
+        setDrawerStudent(null);
+      }
+      setDeleteTarget(null);
+      showToast(t('admin.registrations.toasts.deleted'), 'success');
+    } catch {
+      setDeleteTarget(null);
+      showToast(t('admin.eventSettings.saveErrorToast'), 'error');
     }
-    setDeleteTarget(null);
-    showToast(t('admin.registrations.toasts.deleted'), 'success');
   };
 
   const handleConfirmBulkDelete = async () => {
-    const ids = Array.from(selectedIds);
-    await registrationService.bulkRemove(ids);
-    setSelectedIds(new Set());
-    setBulkDeleteOpen(false);
-    showToast(t('admin.registrations.toasts.bulkDeleted'), 'success');
+    try {
+      const ids = Array.from(selectedIds);
+      await registrationService.bulkRemove(ids);
+      setSelectedIds(new Set());
+      setBulkDeleteOpen(false);
+      showToast(t('admin.registrations.toasts.bulkDeleted'), 'success');
+    } catch {
+      setBulkDeleteOpen(false);
+      showToast(t('admin.eventSettings.saveErrorToast'), 'error');
+    }
   };
 
   const acceptanceRate =

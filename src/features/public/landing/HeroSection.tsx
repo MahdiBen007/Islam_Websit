@@ -67,15 +67,21 @@ export function HeroSection({ onOpenRegistration }: HeroSectionProps) {
                 className="inline-block w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-[#F5C928] ring-3 ring-[#F5C928]/30 animate-pulse shrink-0"
                 aria-hidden="true"
               />
-              <span className="text-xs sm:type-label-md text-[#1769B5] font-bold truncate">
-                {clubName}
-              </span>
-              <span className="text-outline-variant shrink-0" aria-hidden="true">
-                •
-              </span>
-              <span className="text-xs sm:type-label-md text-[#12365C] font-medium truncate">
-                {heroBadge}
-              </span>
+              {clubName && (
+                <span className="text-xs sm:type-label-md text-[#1769B5] font-bold truncate">
+                  {clubName}
+                </span>
+              )}
+              {clubName && heroBadge && (
+                <span className="text-outline-variant shrink-0" aria-hidden="true">
+                  •
+                </span>
+              )}
+              {heroBadge && (
+                <span className="text-xs sm:type-label-md text-[#12365C] font-medium truncate">
+                  {heroBadge}
+                </span>
+              )}
             </div>
 
             {/* Hero Headline */}

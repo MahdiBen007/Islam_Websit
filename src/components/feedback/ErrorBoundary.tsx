@@ -1,51 +1,45 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { Component, type ReactNode } from 'react';
 
-interface Props {
+interface ErrorBoundaryProps {
   children: ReactNode;
 }
 
-interface State {
+interface ErrorBoundaryState {
   hasError: boolean;
-  errorMessage: string;
+  message: string;
 }
 
-export class ErrorBoundary extends Component<Props, State> {
-  state: State = {
-    hasError: false,
-    errorMessage: '',
-  };
-
-  static getDerivedStateFromError(error: Error): State {
-    return {
-      hasError: true,
-      errorMessage: error.message,
-    };
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, message: '' };
   }
 
-  componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error('Application ErrorBoundary caught an error:', error, info);
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return {
+      hasError: true,
+      message: error.message || 'Unexpected application error.',
+    };
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-surface flex items-center justify-center p-6">
-          <div className="max-w-md w-full bg-surface-container-lowest rounded-2xl shadow-lg p-8 text-center flex flex-col items-center gap-4 border border-outline-variant/30">
-            <div className="w-14 h-14 rounded-full bg-error-container text-error flex items-center justify-center">
-              <AlertCircle className="w-7 h-7" />
-            </div>
-            <h1 className="type-headline-md text-primary font-bold">
-              حدث خطأ غير متوقع / Unexpected Error
-            </h1>
-            <p className="type-body-sm text-on-surface-variant">{this.state.errorMessage}</p>
+        <div
+          dir="rtl"
+          className="min-h-screen flex items-center justify-center bg-surface p-6 text-center"
+        >
+          <div className="max-w-md w-full bg-surface-container-lowest rounded-2xl p-6 shadow-xl border border-outline-variant/25 flex flex-col items-center gap-3">
+            <h1 className="text-xl font-bold text-[#12365C]">حدث خطأ غير متوقع</h1>
+            <p className="text-sm text-[#475569]">
+              تعذر تحميل هذا القسم حالياً. يرجى تحديث الصفحة للمحاولة مجدداً.
+            </p>
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-on-primary type-label-md hover:bg-secondary transition-colors cursor-pointer"
+              className="mt-2 px-5 py-2.5 rounded-xl bg-[#12365C] hover:bg-[#1769B5] text-white font-bold text-sm cursor-pointer transition-colors"
             >
-              <RefreshCw className="w-4 h-4" />
-              <span>إعادة تحميل الصفحة / Reload</span>
+              إعادة تحميل الصفحة
             </button>
           </div>
         </div>

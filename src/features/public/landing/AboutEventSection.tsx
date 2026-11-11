@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import { useAppData } from '@/app/providers/AppDataProvider';
 import { useLanguage } from '@/hooks/useLanguage';
-import { INITIAL_EVENT_SETTINGS } from '@/services/storage/mockSeedData';
 
 export function AboutEventSection() {
   const { eventSettings, pageSettings } = useAppData();
@@ -93,11 +92,9 @@ export function AboutEventSection() {
       id: 'organizer',
       index: '04',
       title: t('event.pillars.organizerTitle'),
-      desc:
-        organizerName === INITIAL_EVENT_SETTINGS.organizerAr ||
-        organizerName === INITIAL_EVENT_SETTINGS.organizerEn
-          ? t('event.pillars.organizerDesc')
-          : `${organizerName} — ${t('event.pillars.organizerDesc')}`,
+      desc: organizerName
+        ? `${organizerName} — ${t('event.pillars.organizerDesc')}`
+        : t('event.pillars.organizerDesc'),
       icon: GraduationCap,
       iconWrapper: 'bg-[#12365C] text-[#F5C928] shadow-sm',
       accentBorder: 'group-hover:border-[#1769B5]/40',
